@@ -16,7 +16,9 @@ TraceObject* InternalTraceBuffer::AddTraceEvent(uint64_t* handle) {
   // If the buffer usage exceeds kFlushThreshold, attempt to perform a flush.
   // This number should be customizable.
   if (total_chunks_ >= max_chunks_ * kFlushThreshold) {
+    mutex_.Unlock();
     external_buffer_->Flush(false);
+    mutex_.Lock();
   }
   // Create new chunk if last chunk is full or there is no chunk.
   if (total_chunks_ == 0 || chunks_[total_chunks_ - 1]->IsFull()) {
@@ -55,14 +57,17 @@ TraceObject* InternalTraceBuffer::GetEventByHandle(uint64_t handle) {
 }
 
 void InternalTraceBuffer::Flush(bool blocking) {
-  for (size_t i = 0; i < total_chunks_; ++i) {
-    auto& chunk = chunks_[i];
-    for (size_t j = 0; j < chunk->size(); ++j) {
-      trace_writer_->AppendTraceEvent(chunk->GetEventAt(j));
+  {
+    Mutex::ScopedLock scoped_lock(mutex_);
+    for (size_t i = 0; i < total_chunks_; ++i) {
+      auto& chunk = chunks_[i];
+      for (size_t j = 0; j < chunk->size(); ++j) {
+        trace_writer_->AppendTraceEvent(chunk->GetEventAt(j));
+      }
     }
+    total_chunks_ = 0;
   }
   trace_writer_->Flush(blocking);
-  total_chunks_ = 0;
 }
 
 uint64_t InternalTraceBuffer::MakeHandle(
