@@ -25,7 +25,6 @@ class Agent {
 
   v8::Platform* platform_ = nullptr;
   Environment* parent_env_;
-  uv_async_t flush_signal_;
   TracingController* tracing_controller_;
 };
 

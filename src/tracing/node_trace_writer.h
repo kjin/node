@@ -43,19 +43,26 @@ class NodeTraceWriter : public TraceWriter {
 
   uv_thread_t thread_;
   uv_loop_t tracing_loop_;
+  // Triggers callback to initiate writing the contents of stream_ to disk.
   uv_async_t flush_signal_;
+  // Triggers callback to close async objects, ending the tracing thread.
   uv_async_t exit_signal_;
-  std::queue<WriteRequest> write_req_queue_;
+  // Prevents concurrent R/W on state related to serialized trace data
+  // before it's written to disk, namely stream_ and total_traces_.
+  uv_mutex_t stream_mutex_;
+  // Prevents concurrent R/W on state related to write requests.
+  uv_mutex_t request_mutex_;
+  // Allows blocking calls to Flush() to wait on a condition for
+  // trace events to be written to disk.
+  uv_cond_t request_cond_;
+  int fd_ = -1;
+  std::queue<WriteRequest*> write_req_queue_;
   int num_write_requests_ = 0;
   int highest_request_id_completed_ = 0;
-  uv_cond_t writer_cond_;
-  uv_mutex_t stream_mutex_;
-  uv_mutex_t request_mutex_;
-  int fd_ = -1;
   int total_traces_ = 0;
   int file_num_ = 0;
-  uv_pipe_t trace_file_pipe_;
   std::ostringstream stream_;
+  uv_pipe_t trace_file_pipe_;
 };
 
 }  // namespace tracing

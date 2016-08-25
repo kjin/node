@@ -27,8 +27,8 @@ void Agent::Start(v8::Platform* platform, const char* trace_config_file) {
     TraceConfigParser::FillTraceConfig(env->isolate(), trace_config,
                                        str.c_str());
   } else {
-     trace_config->AddIncludedCategory("v8");
-     trace_config->AddIncludedCategory("node");
+    trace_config->AddIncludedCategory("v8");
+    trace_config->AddIncludedCategory("node");
   }
   tracing_controller_->Initialize(trace_buffer);
   tracing_controller_->StartTracing(trace_config);

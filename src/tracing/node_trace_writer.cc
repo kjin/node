@@ -25,7 +25,7 @@ NodeTraceWriter::NodeTraceWriter() {
   CHECK_EQ(err, 0);
   err = uv_mutex_init(&request_mutex_);
   CHECK_EQ(err, 0);
-  err = uv_cond_init(&writer_cond_);
+  err = uv_cond_init(&request_cond_);
   CHECK_EQ(err, 0);
 
   err = uv_thread_create(&thread_, ThreadCb, this);
@@ -115,6 +115,7 @@ void NodeTraceWriter::FlushPrivate() {
   // str() makes a copy of the contents of the stream.
   str = stream_.str();
   stream_.str("");
+  stream_.clear();
   if (str.length() > 0 && fd_ != -1) {
     uv_mutex_lock(&request_mutex_);
     highest_request_id = num_write_requests_++;
@@ -151,7 +152,7 @@ void NodeTraceWriter::Flush(bool blocking) {
     // This guarantees that data from all earlier requests have also been
     // written.
     while (request_id > highest_request_id_completed_) {
-      uv_cond_wait(&writer_cond_, &request_mutex_);
+      uv_cond_wait(&request_cond_, &request_mutex_);
     }
     uv_mutex_unlock(&request_mutex_);
   }
@@ -160,9 +161,9 @@ void NodeTraceWriter::Flush(bool blocking) {
 void NodeTraceWriter::WriteToFile(std::string str, int highest_request_id) {
   const char* c_str = str.c_str();
   uv_buf_t uv_buf = uv_buf_init(const_cast<char*>(c_str), strlen(c_str));
-  WriteRequest write_req;
-  write_req.writer = this;
-  write_req.highest_request_id = highest_request_id;
+  WriteRequest* write_req = new WriteRequest();
+  write_req->writer = this;
+  write_req->highest_request_id = highest_request_id;
   uv_mutex_lock(&request_mutex_);
   // Manage a queue of WriteRequest objects because the behavior of uv_write is
   // is undefined if the same WriteRequest object is used more than once
@@ -172,7 +173,7 @@ void NodeTraceWriter::WriteToFile(std::string str, int highest_request_id) {
   uv_mutex_unlock(&request_mutex_);
   // TODO: Is the return value of back() guaranteed to always have the
   // same address?
-  uv_write(reinterpret_cast<uv_write_t*>(&write_req_queue_.back()),
+  uv_write(reinterpret_cast<uv_write_t*>(write_req),
            reinterpret_cast<uv_stream_t*>(&trace_file_pipe_),
            &uv_buf, 1, WriteCb);
 }
@@ -182,11 +183,12 @@ void NodeTraceWriter::WriteCb(uv_write_t* req, int status) {
   NodeTraceWriter* writer = write_req->writer;
   int highest_request_id = write_req->highest_request_id;
   uv_mutex_lock(&writer->request_mutex_);
-  CHECK_EQ(write_req, &writer->write_req_queue_.front());
+  CHECK_EQ(write_req, writer->write_req_queue_.front());
   writer->write_req_queue_.pop();
   writer->highest_request_id_completed_ = highest_request_id;
   uv_mutex_unlock(&writer->request_mutex_);
-  uv_cond_broadcast(&writer->writer_cond_);
+  uv_cond_broadcast(&writer->request_cond_);
+  delete write_req;
 }
 
 // static

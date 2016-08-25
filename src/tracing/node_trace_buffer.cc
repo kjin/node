@@ -101,7 +101,11 @@ TraceObject* NodeTraceBuffer::GetEventByHandle(uint64_t handle) {
   return current_buf_.load()->GetEventByHandle(handle);
 }
 
-// TODO: Remove
+// TODO: This function is here to match the parent class signature,
+// but it's not expressive enough because it doesn't allow us to specify
+// whether it should block or not. The parent class signature should be changed
+// in the future to include this parameter, and when that's done, this
+// function should be removed.
 bool NodeTraceBuffer::Flush() {
   return Flush(true);
 }
