@@ -4,6 +4,7 @@
 #include <sstream>
 #include <queue>
 
+#include "node_mutex.h"
 #include "libplatform/v8-tracing.h"
 #include "uv.h"
 
@@ -49,12 +50,12 @@ class NodeTraceWriter : public TraceWriter {
   uv_async_t exit_signal_;
   // Prevents concurrent R/W on state related to serialized trace data
   // before it's written to disk, namely stream_ and total_traces_.
-  uv_mutex_t stream_mutex_;
+  Mutex stream_mutex_;
   // Prevents concurrent R/W on state related to write requests.
-  uv_mutex_t request_mutex_;
+  Mutex request_mutex_;
   // Allows blocking calls to Flush() to wait on a condition for
   // trace events to be written to disk.
-  uv_cond_t request_cond_;
+  ConditionVariable request_cond_;
   int fd_ = -1;
   std::queue<WriteRequest*> write_req_queue_;
   int num_write_requests_ = 0;

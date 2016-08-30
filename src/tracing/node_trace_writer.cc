@@ -20,14 +20,6 @@ NodeTraceWriter::NodeTraceWriter() {
   err = uv_async_init(&tracing_loop_, &exit_signal_, ExitSignalCb);
   CHECK_EQ(err, 0);
 
-  // synchronization variables setup
-  err = uv_mutex_init(&stream_mutex_);
-  CHECK_EQ(err, 0);
-  err = uv_mutex_init(&request_mutex_);
-  CHECK_EQ(err, 0);
-  err = uv_cond_init(&request_cond_);
-  CHECK_EQ(err, 0);
-
   err = uv_thread_create(&thread_, ThreadCb, this);
   CHECK_EQ(err, 0);
 }
@@ -36,14 +28,17 @@ void NodeTraceWriter::WriteSuffix() {
   // If our final log file has traces, then end the file appropriately.
   // This means that if no trace events are recorded, then no trace file is
   // produced.
-  uv_mutex_lock(&stream_mutex_);
-  if (total_traces_ > 0) {
-    total_traces_ = 0; // so we don't write it again in FlushPrivate
-    stream_ << "]}\n";
-    uv_mutex_unlock(&stream_mutex_);
+  bool should_flush = false;
+  {
+    Mutex::ScopedLock scoped_lock(stream_mutex_);
+    if (total_traces_ > 0) {
+      total_traces_ = 0; // so we don't write it again in FlushPrivate
+      stream_ << "]}\n";
+      should_flush = true;
+    }
+  }
+  if (should_flush) {
     Flush(true);
-  } else {
-    uv_mutex_unlock(&stream_mutex_);
   }
 }
 
@@ -75,7 +70,7 @@ void NodeTraceWriter::OpenNewFileForStreaming() {
 }
 
 void NodeTraceWriter::AppendTraceEvent(TraceObject* trace_event) {
-  uv_mutex_lock(&stream_mutex_);
+  Mutex::ScopedLock scoped_lock(stream_mutex_);
   // If this is the first trace event, open a new file for streaming.
   if (total_traces_ == 0) {
     OpenNewFileForStreaming();
@@ -101,31 +96,30 @@ void NodeTraceWriter::AppendTraceEvent(TraceObject* trace_event) {
     stream_ << ",\"id\":" << trace_event->id();
   }
   stream_ << "}";
-  uv_mutex_unlock(&stream_mutex_);
 }
 
 void NodeTraceWriter::FlushPrivate() {
   std::string str;
   int highest_request_id;
-  uv_mutex_lock(&stream_mutex_);
-  if (total_traces_ >= kTracesPerFile) {
-    total_traces_ = 0;
-    stream_ << "]}\n";
+  bool should_write = false;
+  {
+    Mutex::ScopedLock stream_scoped_lock(stream_mutex_);
+    if (total_traces_ >= kTracesPerFile) {
+      total_traces_ = 0;
+      stream_ << "]}\n";
+    }
+    // str() makes a copy of the contents of the stream.
+    str = stream_.str();
+    stream_.str("");
+    stream_.clear();
+    if (str.length() > 0 && fd_ != -1) {
+      Mutex::ScopedLock request_scoped_lock(request_mutex_);
+      highest_request_id = num_write_requests_++;
+      should_write = true;
+    }
   }
-  // str() makes a copy of the contents of the stream.
-  str = stream_.str();
-  stream_.str("");
-  stream_.clear();
-  if (str.length() > 0 && fd_ != -1) {
-    uv_mutex_lock(&request_mutex_);
-    highest_request_id = num_write_requests_++;
-    uv_mutex_unlock(&request_mutex_);
-    uv_mutex_unlock(&stream_mutex_);
+  if (should_write) {
     WriteToFile(str, highest_request_id);
-  } else {
-    // Empty string or file not opened - so don't write.
-    // (Both of these are true if no trace events were recorded.)
-    uv_mutex_unlock(&stream_mutex_);
   }
 }
 
@@ -141,20 +135,17 @@ void NodeTraceWriter::Flush() {
 }
 
 void NodeTraceWriter::Flush(bool blocking) {
-  uv_mutex_lock(&request_mutex_);
-  int request_id = num_write_requests_++;
-  uv_mutex_unlock(&request_mutex_);
   int err = uv_async_send(&flush_signal_);
   CHECK_EQ(err, 0);
+  Mutex::ScopedLock scoped_lock(request_mutex_);
+  int request_id = num_write_requests_++;
   if (blocking) {
-    uv_mutex_lock(&request_mutex_);
     // Wait until data associated with this request id has been written to disk.
     // This guarantees that data from all earlier requests have also been
     // written.
     while (request_id > highest_request_id_completed_) {
-      uv_cond_wait(&request_cond_, &request_mutex_);
+      request_cond_.Wait(scoped_lock);
     }
-    uv_mutex_unlock(&request_mutex_);
   }
 }
 
@@ -164,13 +155,13 @@ void NodeTraceWriter::WriteToFile(std::string str, int highest_request_id) {
   WriteRequest* write_req = new WriteRequest();
   write_req->writer = this;
   write_req->highest_request_id = highest_request_id;
-  uv_mutex_lock(&request_mutex_);
+  request_mutex_.Lock();
   // Manage a queue of WriteRequest objects because the behavior of uv_write is
   // is undefined if the same WriteRequest object is used more than once
   // between WriteCb calls. In addition, this allows us to keep track of the id
   // of the latest write request that actually been completed.
   write_req_queue_.push(write_req);
-  uv_mutex_unlock(&request_mutex_);
+  request_mutex_.Unlock();
   // TODO: Is the return value of back() guaranteed to always have the
   // same address?
   uv_write(reinterpret_cast<uv_write_t*>(write_req),
@@ -182,12 +173,13 @@ void NodeTraceWriter::WriteCb(uv_write_t* req, int status) {
   WriteRequest* write_req = reinterpret_cast<WriteRequest*>(req);
   NodeTraceWriter* writer = write_req->writer;
   int highest_request_id = write_req->highest_request_id;
-  uv_mutex_lock(&writer->request_mutex_);
-  CHECK_EQ(write_req, writer->write_req_queue_.front());
-  writer->write_req_queue_.pop();
-  writer->highest_request_id_completed_ = highest_request_id;
-  uv_mutex_unlock(&writer->request_mutex_);
-  uv_cond_broadcast(&writer->request_cond_);
+  {
+    Mutex::ScopedLock scoped_lock(writer->request_mutex_);
+    CHECK_EQ(write_req, writer->write_req_queue_.front());
+    writer->write_req_queue_.pop();
+    writer->highest_request_id_completed_ = highest_request_id;
+    writer->request_cond_.Broadcast(scoped_lock);
+  }
   delete write_req;
 }
 
