@@ -28,6 +28,7 @@ void Agent::Start(v8::Platform* platform, const char* trace_config_file) {
                                        str.c_str());
   } else {
     trace_config->AddIncludedCategory("v8");
+    trace_config->AddIncludedCategory("disabled-by-default-v8.runtime_stats");
     trace_config->AddIncludedCategory("node");
   }
   tracing_controller_->Initialize(trace_buffer);

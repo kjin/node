@@ -13,6 +13,7 @@ namespace tracing {
 
 using v8::platform::tracing::TraceObject;
 using v8::platform::tracing::TraceWriter;
+using v8::platform::tracing::TraceSerializer;
 using v8::platform::tracing::TracingController;
 
 class NodeTraceWriter : public TraceWriter {
@@ -63,6 +64,7 @@ class NodeTraceWriter : public TraceWriter {
   int total_traces_ = 0;
   int file_num_ = 0;
   std::ostringstream stream_;
+  TraceSerializer trace_serializer_;
   uv_pipe_t trace_file_pipe_;
 };
 
