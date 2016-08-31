@@ -13,9 +13,8 @@ namespace v8 {
 namespace platform {
 namespace tracing {
 
-// Currently we do not support JSON-escaping strings in trace arguments.
-// Thus we perform an IsJSONString() check before writing any string argument.
-// In particular, this means strings cannot have control characters or " or \.
+// Returns true if a JSON string doesn't have any characters that need to be
+// escaped.
 V8_INLINE static bool IsJSONString(const char* str) {
   size_t len = strlen(str);
   for (size_t i = 0; i < len; ++i) {
@@ -24,6 +23,45 @@ V8_INLINE static bool IsJSONString(const char* str) {
     }
   }
   return true;
+}
+
+// Writes the given string to a stream, taking care to escape characters
+// when necessary.
+V8_INLINE static void WriteJSONStringToStream(const char* str,
+                                              std::ostream& stream) {
+  size_t len = strlen(str);
+  for (size_t i = 0; i < len; ++i) {
+    // All of the permitted escape sequences in JSON strings, as per
+    // https://mathiasbynens.be/notes/javascript-escapes
+    switch (str[i]) {
+      case '\b':
+        stream << "\\b";
+        break;
+      case '\f':
+        stream << "\\f";
+        break;
+      case '\n':
+        stream << "\\n";
+        break;
+      case '\r':
+        stream << "\\r";
+        break;
+      case '\t':
+        stream << "\\t";
+        break;
+      case '\"':
+        stream << "\\\"";
+        break;
+      case '\\':
+        stream << "\\\\";
+        break;
+      // Note that because we use double quotes for JSON strings,
+      // we don't need to escape single quotes.
+      default:
+        stream << str[i];
+        break;
+    }
+  }
 }
 
 void TraceSerializer::AppendArgValue(uint8_t type,
@@ -72,10 +110,13 @@ void TraceSerializer::AppendArgValue(uint8_t type,
       break;
     case TRACE_VALUE_TYPE_STRING:
     case TRACE_VALUE_TYPE_COPY_STRING:
-      // Strings are currently not JSON-escaped, so we need to perform a check
-      // to see if they are valid JSON strings.
-      CHECK(value.as_string == nullptr || IsJSONString(value.as_string));
-      stream_ << "\"" << (value.as_string ? value.as_string : "NULL") << "\"";
+      stream_ << "\"";
+      if (value.as_string == nullptr || IsJSONString(value.as_string)) {
+        stream_ << (value.as_string ? value.as_string : "NULL");
+      } else { // if (value.as_string != nullptr && !IsJSONString(value.as_string))
+        WriteJSONStringToStream(value.as_string, stream_);
+      }
+      stream_ << "\"";
       break;
     default:
       UNREACHABLE();
