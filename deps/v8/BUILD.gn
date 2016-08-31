@@ -2133,6 +2133,7 @@ v8_source_set("v8_libplatform") {
     "src/libplatform/tracing/trace-buffer.h",
     "src/libplatform/tracing/trace-config.cc",
     "src/libplatform/tracing/trace-object.cc",
+    "src/libplatform/tracing/trace-serializer.cc",
     "src/libplatform/tracing/trace-writer.cc",
     "src/libplatform/tracing/trace-writer.h",
     "src/libplatform/tracing/tracing-controller.cc",

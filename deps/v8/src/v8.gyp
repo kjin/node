@@ -2017,6 +2017,7 @@
         'libplatform/tracing/trace-buffer.h',
         'libplatform/tracing/trace-config.cc',
         'libplatform/tracing/trace-object.cc',
+        'libplatform/tracing/trace-serializer.cc',
         'libplatform/tracing/trace-writer.cc',
         'libplatform/tracing/trace-writer.h',
         'libplatform/tracing/tracing-controller.cc',

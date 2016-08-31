@@ -244,6 +244,20 @@ class TracingController {
   void operator=(const TracingController&) = delete;
 };
 
+class TraceSerializer {
+  public:
+   explicit TraceSerializer(std::ostream& stream);
+   void WritePrefix();
+   void AppendTraceEvent(TraceObject* trace_event);
+   void WriteSuffix();
+
+  private:
+   void AppendArgValue(uint8_t type, TraceObject::ArgValue value);
+
+   std::ostream& stream_;
+   bool append_comma_ = false;
+};
+
 }  // namespace tracing
 }  // namespace platform
 }  // namespace v8
