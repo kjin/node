@@ -57,6 +57,7 @@ void Agent::Stop() {
 // static
 void Agent::ThreadCb(void* arg) {
   Agent* agent = static_cast<Agent*>(arg);
+  printf(""); // TODO: For some reason, we need this for GDB to work. (remove)
   uv_run(&agent->tracing_loop_, UV_RUN_DEFAULT);
 }
 

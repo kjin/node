@@ -3,35 +3,21 @@
 namespace node {
 namespace tracing {
 
-const double InternalTraceBuffer::kFlushThreshold = 0.75;
-
 InternalTraceBuffer::InternalTraceBuffer(size_t max_chunks,
     NodeTraceWriter* trace_writer, NodeTraceBuffer* external_buffer)
-    : max_chunks_(max_chunks), trace_writer_(trace_writer), external_buffer_(external_buffer) {
+    : flushing_(false), max_chunks_(max_chunks), trace_writer_(trace_writer), external_buffer_(external_buffer) {
   chunks_.resize(max_chunks);
 }
 
 TraceObject* InternalTraceBuffer::AddTraceEvent(uint64_t* handle) {
   Mutex::ScopedLock scoped_lock(mutex_);
-  // If the buffer usage exceeds kFlushThreshold, attempt to perform a flush.
-  // This number should be customizable.
-  if (total_chunks_ >= max_chunks_ * kFlushThreshold) {
-    mutex_.Unlock();
-    external_buffer_->Flush(false);
-    mutex_.Lock();
-  }
   // Create new chunk if last chunk is full or there is no chunk.
   if (total_chunks_ == 0 || chunks_[total_chunks_ - 1]->IsFull()) {
-    if (total_chunks_ == max_chunks_) {
-      // There is no more space to store more trace events.
-      *handle = MakeHandle(0, 0, 0);
-      return nullptr;
-    }
     auto& chunk = chunks_[total_chunks_++];
     if (chunk) {
-      chunk->Reset(current_chunk_seq_++);
+      chunk->Reset(external_buffer_->current_chunk_seq_++);
     } else {
-      chunk.reset(new TraceBufferChunk(current_chunk_seq_++));
+      chunk.reset(new TraceBufferChunk(external_buffer_->current_chunk_seq_++));
     }
   }
   auto& chunk = chunks_[total_chunks_ - 1];
@@ -59,6 +45,7 @@ TraceObject* InternalTraceBuffer::GetEventByHandle(uint64_t handle) {
 void InternalTraceBuffer::Flush(bool blocking) {
   {
     Mutex::ScopedLock scoped_lock(mutex_);
+    flushing_ = true;
     for (size_t i = 0; i < total_chunks_; ++i) {
       auto& chunk = chunks_[i];
       for (size_t j = 0; j < chunk->size(); ++j) {
@@ -66,6 +53,7 @@ void InternalTraceBuffer::Flush(bool blocking) {
       }
     }
     total_chunks_ = 0;
+    flushing_ = false;
   }
   trace_writer_->Flush(blocking);
 }
@@ -95,7 +83,7 @@ NodeTraceBuffer::NodeTraceBuffer(size_t max_chunks,
   flush_signal_.data = this;
   int err = uv_async_init(tracing_loop_, &flush_signal_, NonBlockingFlushSignalCb);
   CHECK_EQ(err, 0);
-  
+
   exit_signal_.data = this;
   err = uv_async_init(tracing_loop_, &exit_signal_, ExitSignalCb);
   CHECK_EQ(err, 0);
@@ -106,6 +94,11 @@ NodeTraceBuffer::~NodeTraceBuffer() {
 }
 
 TraceObject* NodeTraceBuffer::AddTraceEvent(uint64_t* handle) {
+  // If the buffer is full, attempt to perform a flush.
+  if (!TryLoadAvailableBuffer()) {
+    *handle = 0;
+    return nullptr;
+  }
   return current_buf_.load()->AddTraceEvent(handle);
 }
 
@@ -113,40 +106,38 @@ TraceObject* NodeTraceBuffer::GetEventByHandle(uint64_t handle) {
   return current_buf_.load()->GetEventByHandle(handle);
 }
 
-// TODO: This function is here to match the parent class signature,
-// but it's not expressive enough because it doesn't allow us to specify
-// whether it should block or not. The parent class signature should be changed
-// in the future to include this parameter, and when that's done, this
-// function should be removed.
 bool NodeTraceBuffer::Flush() {
-  return Flush(true);
+  buffer1_.Flush(true);
+  buffer2_.Flush(true);
 }
 
-void NodeTraceBuffer::FlushPrivate(bool blocking) {
+// Attempts to set current_buf_ such that it references a buffer that can
+// can write at least one trace event. If both buffers are unavailable this
+// method returns false; otherwise it returns true.
+bool NodeTraceBuffer::TryLoadAvailableBuffer() {
   InternalTraceBuffer* prev_buf = current_buf_.load();
-  if (prev_buf == &buffer1_) {
-    current_buf_.store(&buffer2_);
-  } else {
-    current_buf_.store(&buffer1_);
+  if (prev_buf->IsFull()) {
+    uv_async_send(&flush_signal_); // trigger flush on a separate thread
+    InternalTraceBuffer* other_buf = prev_buf == &buffer1_ ?
+      &buffer2_ : &buffer1_;
+    if (!other_buf->IsFull()) {
+      current_buf_.store(other_buf);
+    } else {
+      return false;
+    }
   }
-  // Flush the other buffer.
-  // Note that concurrently, we can AddTraceEvent to the current buffer.
-  prev_buf->Flush(blocking);
+  return true;
 }
 
 // static
 void NodeTraceBuffer::NonBlockingFlushSignalCb(uv_async_t* signal) {
   NodeTraceBuffer* buffer = reinterpret_cast<NodeTraceBuffer*>(signal->data);
-  buffer->FlushPrivate(false);
-}
-
-bool NodeTraceBuffer::Flush(bool blocking) {
-  if (blocking) {
-    FlushPrivate(true);
-  } else {
-    uv_async_send(&flush_signal_);
+  if (!buffer->buffer1_.IsFlushing()) {
+    buffer->buffer1_.Flush(false);
   }
-  return true;
+  if (!buffer->buffer2_.IsFlushing()) {
+    buffer->buffer2_.Flush(false);
+  }
 }
 
 // static

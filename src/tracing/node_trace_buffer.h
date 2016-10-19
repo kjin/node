@@ -25,6 +25,12 @@ class InternalTraceBuffer {
   TraceObject* AddTraceEvent(uint64_t* handle);
   TraceObject* GetEventByHandle(uint64_t handle);
   void Flush(bool blocking);
+  bool IsFull() const {
+    return total_chunks_ == max_chunks_ && chunks_[total_chunks_ - 1]->IsFull();
+  }
+  bool IsFlushing() const {
+    return flushing_;
+  }
 
   static const double kFlushThreshold;
 
@@ -36,12 +42,12 @@ class InternalTraceBuffer {
   size_t Capacity() const { return max_chunks_ * TraceBufferChunk::kChunkSize; }
 
   Mutex mutex_;
+  bool flushing_;
   size_t max_chunks_;
   NodeTraceWriter* trace_writer_;
   NodeTraceBuffer* external_buffer_;
   std::vector<std::unique_ptr<TraceBufferChunk>> chunks_;
   size_t total_chunks_ = 0;
-  uint32_t current_chunk_seq_ = 1;
 };
 
 class NodeTraceBuffer : public TraceBuffer {
@@ -53,12 +59,12 @@ class NodeTraceBuffer : public TraceBuffer {
   TraceObject* AddTraceEvent(uint64_t* handle) override;
   TraceObject* GetEventByHandle(uint64_t handle) override;
   bool Flush() override;
-  bool Flush(bool blocking);
 
   static const size_t kBufferChunks = 1024;
+  uint32_t current_chunk_seq_ = 1;
 
  private:
-  void FlushPrivate(bool blocking);
+  bool TryLoadAvailableBuffer();
   static void NonBlockingFlushSignalCb(uv_async_t* signal);
   static void ExitSignalCb(uv_async_t* signal);
 
