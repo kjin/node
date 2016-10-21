@@ -45,15 +45,17 @@ TraceObject* InternalTraceBuffer::GetEventByHandle(uint64_t handle) {
 void InternalTraceBuffer::Flush(bool blocking) {
   {
     Mutex::ScopedLock scoped_lock(mutex_);
-    flushing_ = true;
-    for (size_t i = 0; i < total_chunks_; ++i) {
-      auto& chunk = chunks_[i];
-      for (size_t j = 0; j < chunk->size(); ++j) {
-        trace_writer_->AppendTraceEvent(chunk->GetEventAt(j));
+    if (total_chunks_ > 0) {
+      flushing_ = true;
+      for (size_t i = 0; i < total_chunks_; ++i) {
+        auto& chunk = chunks_[i];
+        for (size_t j = 0; j < chunk->size(); ++j) {
+          trace_writer_->AppendTraceEvent(chunk->GetEventAt(j));
+        }
       }
+      total_chunks_ = 0;
+      flushing_ = false;
     }
-    total_chunks_ = 0;
-    flushing_ = false;
   }
   trace_writer_->Flush(blocking);
 }
@@ -132,10 +134,10 @@ bool NodeTraceBuffer::TryLoadAvailableBuffer() {
 // static
 void NodeTraceBuffer::NonBlockingFlushSignalCb(uv_async_t* signal) {
   NodeTraceBuffer* buffer = reinterpret_cast<NodeTraceBuffer*>(signal->data);
-  if (!buffer->buffer1_.IsFlushing()) {
+  if (buffer->buffer1_.IsFull() && !buffer->buffer1_.IsFlushing()) {
     buffer->buffer1_.Flush(false);
   }
-  if (!buffer->buffer2_.IsFlushing()) {
+  if (buffer->buffer2_.IsFull() && !buffer->buffer2_.IsFlushing()) {
     buffer->buffer2_.Flush(false);
   }
 }
