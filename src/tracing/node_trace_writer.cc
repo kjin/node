@@ -1,6 +1,8 @@
 #include "tracing/node_trace_writer.h"
 
 #include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "trace_event_common.h"
 #include "util.h"
@@ -127,10 +129,10 @@ void NodeTraceWriter::Flush() {
 }
 
 void NodeTraceWriter::Flush(bool blocking) {
-  int err = uv_async_send(&flush_signal_);
-  CHECK_EQ(err, 0);
   Mutex::ScopedLock scoped_lock(request_mutex_);
   int request_id = ++num_write_requests_;
+  int err = uv_async_send(&flush_signal_);
+  CHECK_EQ(err, 0);
   if (blocking) {
     // Wait until data associated with this request id has been written to disk.
     // This guarantees that data from all earlier requests have also been
@@ -156,9 +158,10 @@ void NodeTraceWriter::WriteToFile(std::string str, int highest_request_id) {
   request_mutex_.Unlock();
   // TODO: Is the return value of back() guaranteed to always have the
   // same address?
-  uv_write(reinterpret_cast<uv_write_t*>(write_req),
+  int err = uv_write(reinterpret_cast<uv_write_t*>(write_req),
            reinterpret_cast<uv_stream_t*>(&trace_file_pipe_),
            &uv_buf, 1, WriteCb);
+  CHECK_EQ(err, 0);
 }
 
 void NodeTraceWriter::WriteCb(uv_write_t* req, int status) {
