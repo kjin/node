@@ -1,6 +1,8 @@
 #include "tracing/node_trace_writer.h"
 
 #include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "trace_event_common.h"
 #include "util.h"
@@ -49,6 +51,10 @@ NodeTraceWriter::~NodeTraceWriter() {
     uv_close(reinterpret_cast<uv_handle_t*>(&trace_file_pipe_), nullptr);
   }
   uv_async_send(&exit_signal_);
+  Mutex::ScopedLock scoped_lock(request_mutex_);
+  while(!exited_) {
+    exit_cond_.Wait(scoped_lock);
+  }
 }
 
 void NodeTraceWriter::OpenNewFileForStreaming() {
@@ -98,12 +104,16 @@ void NodeTraceWriter::FlushPrivate() {
     stream_.clear();
     if (str.length() > 0 && fd_ != -1) {
       Mutex::ScopedLock request_scoped_lock(request_mutex_);
-      highest_request_id = num_write_requests_++;
+      highest_request_id = num_write_requests_;
       should_write = true;
     }
   }
   if (should_write) {
     WriteToFile(str, highest_request_id);
+  } else {
+    Mutex::ScopedLock request_scoped_lock(request_mutex_);
+    highest_request_id_completed_ = num_write_requests_;
+    request_cond_.Broadcast(request_scoped_lock);
   }
 }
 
@@ -119,10 +129,10 @@ void NodeTraceWriter::Flush() {
 }
 
 void NodeTraceWriter::Flush(bool blocking) {
+  Mutex::ScopedLock scoped_lock(request_mutex_);
+  int request_id = ++num_write_requests_;
   int err = uv_async_send(&flush_signal_);
   CHECK_EQ(err, 0);
-  Mutex::ScopedLock scoped_lock(request_mutex_);
-  int request_id = num_write_requests_++;
   if (blocking) {
     // Wait until data associated with this request id has been written to disk.
     // This guarantees that data from all earlier requests have also been
@@ -148,9 +158,10 @@ void NodeTraceWriter::WriteToFile(std::string str, int highest_request_id) {
   request_mutex_.Unlock();
   // TODO: Is the return value of back() guaranteed to always have the
   // same address?
-  uv_write(reinterpret_cast<uv_write_t*>(write_req),
+  int err = uv_write(reinterpret_cast<uv_write_t*>(write_req),
            reinterpret_cast<uv_stream_t*>(&trace_file_pipe_),
            &uv_buf, 1, WriteCb);
+  CHECK_EQ(err, 0);
 }
 
 void NodeTraceWriter::WriteCb(uv_write_t* req, int status) {
@@ -172,6 +183,9 @@ void NodeTraceWriter::ExitSignalCb(uv_async_t* signal) {
   NodeTraceWriter* trace_writer = static_cast<NodeTraceWriter*>(signal->data);
   uv_close(reinterpret_cast<uv_handle_t*>(&trace_writer->flush_signal_), nullptr);
   uv_close(reinterpret_cast<uv_handle_t*>(&trace_writer->exit_signal_), nullptr);
+  Mutex::ScopedLock scoped_lock(trace_writer->request_mutex_);
+  trace_writer->exited_ = true;
+  trace_writer->exit_cond_.Signal(scoped_lock);
 }
 
 }  // namespace tracing
