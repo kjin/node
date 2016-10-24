@@ -89,7 +89,6 @@ void NodeTraceWriter::AppendTraceEvent(TraceObject* trace_event) {
 void NodeTraceWriter::FlushPrivate() {
   std::string str;
   int highest_request_id;
-  bool should_write = false;
   {
     Mutex::ScopedLock stream_scoped_lock(stream_mutex_);
     if (total_traces_ >= kTracesPerFile) {
@@ -102,19 +101,12 @@ void NodeTraceWriter::FlushPrivate() {
     str = stream_.str();
     stream_.str("");
     stream_.clear();
-    if (str.length() > 0 && fd_ != -1) {
-      Mutex::ScopedLock request_scoped_lock(request_mutex_);
-      highest_request_id = num_write_requests_;
-      should_write = true;
-    }
   }
-  if (should_write) {
-    WriteToFile(str, highest_request_id);
-  } else {
+  {
     Mutex::ScopedLock request_scoped_lock(request_mutex_);
-    highest_request_id_completed_ = num_write_requests_;
-    request_cond_.Broadcast(request_scoped_lock);
+    highest_request_id = num_write_requests_;
   }
+  WriteToFile(str, highest_request_id);
 }
 
 void NodeTraceWriter::FlushSignalCb(uv_async_t* signal) {
