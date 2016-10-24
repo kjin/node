@@ -54,6 +54,7 @@ class NodeTraceWriter : public TraceWriter {
   // Allows blocking calls to Flush() to wait on a condition for
   // trace events to be written to disk.
   ConditionVariable request_cond_;
+  // Used to wait until async handles have been closed.
   ConditionVariable exit_cond_;
   int fd_ = -1;
   std::queue<WriteRequest*> write_req_queue_;
