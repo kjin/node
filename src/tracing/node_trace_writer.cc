@@ -173,9 +173,9 @@ void NodeTraceWriter::WriteCb(uv_write_t* req, int status) {
 // static
 void NodeTraceWriter::ExitSignalCb(uv_async_t* signal) {
   NodeTraceWriter* trace_writer = static_cast<NodeTraceWriter*>(signal->data);
+  Mutex::ScopedLock scoped_lock(trace_writer->request_mutex_);
   uv_close(reinterpret_cast<uv_handle_t*>(&trace_writer->flush_signal_), nullptr);
   uv_close(reinterpret_cast<uv_handle_t*>(&trace_writer->exit_signal_), nullptr);
-  Mutex::ScopedLock scoped_lock(trace_writer->request_mutex_);
   trace_writer->exited_ = true;
   trace_writer->exit_cond_.Signal(scoped_lock);
 }
