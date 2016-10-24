@@ -118,6 +118,10 @@ NodeTraceBuffer::NodeTraceBuffer(size_t max_chunks,
 
 NodeTraceBuffer::~NodeTraceBuffer() {
   uv_async_send(&exit_signal_);
+  Mutex::ScopedLock scoped_lock(exit_mutex_);
+  while(!exited_) {
+    exit_cond_.Wait(scoped_lock);
+  }
 }
 
 TraceObject* NodeTraceBuffer::AddTraceEvent(uint64_t* handle) {
@@ -177,6 +181,9 @@ void NodeTraceBuffer::ExitSignalCb(uv_async_t* signal) {
   NodeTraceBuffer* buffer = reinterpret_cast<NodeTraceBuffer*>(signal->data);
   uv_close(reinterpret_cast<uv_handle_t*>(&buffer->flush_signal_), nullptr);
   uv_close(reinterpret_cast<uv_handle_t*>(&buffer->exit_signal_), nullptr);
+  Mutex::ScopedLock scoped_lock(buffer->exit_mutex_);
+  buffer->exited_ = true;
+  buffer->exit_cond_.Signal(scoped_lock);
 }
 
 }  // namespace tracing

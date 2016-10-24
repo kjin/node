@@ -65,6 +65,11 @@ class NodeTraceBuffer : public TraceBuffer {
   uv_loop_t* tracing_loop_;
   uv_async_t flush_signal_;
   uv_async_t exit_signal_;
+  bool exited_ = false;
+  // Used exclusively for exit logic.
+  Mutex exit_mutex_;
+  // Used to wait until async handles have been closed.
+  ConditionVariable exit_cond_;
   std::unique_ptr<NodeTraceWriter> trace_writer_;
   // TODO: Change std::atomic to something less contentious.
   std::atomic<InternalTraceBuffer*> current_buf_;
