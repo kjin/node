@@ -1,8 +1,6 @@
 #include "tracing/node_trace_writer.h"
 
 #include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 #include "trace_event_common.h"
 #include "util.h"

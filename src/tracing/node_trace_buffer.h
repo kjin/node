@@ -19,7 +19,8 @@ class NodeTraceBuffer;
 
 class InternalTraceBuffer {
  public:
-  InternalTraceBuffer(size_t max_chunks, NodeTraceWriter* trace_writer,
+  InternalTraceBuffer(size_t max_chunks, uint32_t id,
+                      NodeTraceWriter* trace_writer,
                       NodeTraceBuffer* external_buffer);
 
   TraceObject* AddTraceEvent(uint64_t* handle);
@@ -32,12 +33,10 @@ class InternalTraceBuffer {
     return flushing_;
   }
 
-  static const double kFlushThreshold;
-
  private:
   uint64_t MakeHandle(size_t chunk_index, uint32_t chunk_seq,
                       size_t event_index) const;
-  void ExtractHandle(uint64_t handle, size_t* chunk_index,
+  void ExtractHandle(uint64_t handle, uint32_t* buffer_id, size_t* chunk_index,
                      uint32_t* chunk_seq, size_t* event_index) const;
   size_t Capacity() const { return max_chunks_ * TraceBufferChunk::kChunkSize; }
 
@@ -48,6 +47,8 @@ class InternalTraceBuffer {
   NodeTraceBuffer* external_buffer_;
   std::vector<std::unique_ptr<TraceBufferChunk>> chunks_;
   size_t total_chunks_ = 0;
+  uint32_t current_chunk_seq_ = 1;
+  uint32_t id_;
 };
 
 class NodeTraceBuffer : public TraceBuffer {
@@ -61,7 +62,6 @@ class NodeTraceBuffer : public TraceBuffer {
   bool Flush() override;
 
   static const size_t kBufferChunks = 1024;
-  uint32_t current_chunk_seq_ = 1;
 
  private:
   bool TryLoadAvailableBuffer();
