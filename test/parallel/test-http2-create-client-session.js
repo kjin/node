@@ -3,7 +3,6 @@
 const common = require('../common');
 const assert = require('assert');
 const h2 = require('http2');
-const net = require('net');
 const body =
   '<html><head></head><body><h1>this is some data</h2></body></html>';
 
@@ -24,14 +23,11 @@ server.listen(0);
 
 server.on('listening', common.mustCall(function() {
 
-  h2.connect(this.address(), common.mustCall((client, socket) => {
+  const client = h2.connect(`http://localhost:${this.address().port}`);
 
-    const headers = {
-      ':method': 'GET',
-      ':scheme': 'http',
-      ':authority': `localhost:${this.address().port}`,
-      ':path': '/'
-    };
+  client.once('connect', common.mustCall(() => {
+
+    const headers = { ':path': '/' };
 
     const req = client.request(headers);
 
@@ -48,7 +44,7 @@ server.on('listening', common.mustCall(function() {
     req.on('end', common.mustCall(function() {
       assert.strictEqual(body, data);
       server.close();
-      socket.destroy();
+      client.socket.destroy();
     }));
     req.end();
   }));
