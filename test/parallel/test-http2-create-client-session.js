@@ -7,9 +7,10 @@ const body =
   '<html><head></head><body><h1>this is some data</h2></body></html>';
 
 const server = h2.createServer();
+const count = 10;
 
 // we use the lower-level API here
-server.on('stream', common.mustCall(onStream));
+server.on('stream', common.mustCall(onStream, count));
 
 function onStream(stream) {
   stream.respond({
@@ -21,6 +22,8 @@ function onStream(stream) {
 
 server.listen(0);
 
+var expected = count;
+
 server.on('listening', common.mustCall(function() {
 
   const client = h2.connect(`http://localhost:${this.address().port}`);
@@ -29,24 +32,28 @@ server.on('listening', common.mustCall(function() {
 
     const headers = { ':path': '/' };
 
-    const req = client.request(headers);
+    for (var n = 0; n < count; n++) {
+      const req = client.request(headers);
 
-    req.on('response', common.mustCall(function(headers) {
-      assert.strictEqual(headers[':status'], '200', 'status code is set');
-      assert.strictEqual(headers['content-type'], 'text/html',
-                         'content type is set');
-      assert(headers['date'], 'there is a date');
-    }));
+      req.on('response', common.mustCall(function(headers) {
+        assert.strictEqual(headers[':status'], '200', 'status code is set');
+        assert.strictEqual(headers['content-type'], 'text/html',
+                          'content type is set');
+        assert(headers['date'], 'there is a date');
+      }));
 
-    let data = '';
-    req.setEncoding('utf8');
-    req.on('data', (d) => data += d);
-    req.on('end', common.mustCall(function() {
-      assert.strictEqual(body, data);
-      server.close();
-      client.socket.destroy();
-    }));
-    req.end();
+      let data = '';
+      req.setEncoding('utf8');
+      req.on('data', (d) => data += d);
+      req.on('end', common.mustCall(() => {
+        assert.strictEqual(body, data);
+        if (--expected === 0) {
+          server.close();
+          client.socket.destroy();
+        }
+      }));
+      req.end();
+    }
   }));
 
 }));
