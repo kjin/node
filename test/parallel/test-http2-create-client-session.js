@@ -23,11 +23,8 @@ function onStream(stream) {
 server.listen(0);
 
 server.on('listening', common.mustCall(function() {
-  const socket = net.connect(this.address());
 
-  // TODO mcollina remove on('connect')
-  socket.on('connect', function() {
-    const client = h2.createClientSession(socket);
+  h2.connect(this.address(), common.mustCall((client, socket) => {
 
     const headers = {
       ':method': 'GET',
@@ -54,5 +51,6 @@ server.on('listening', common.mustCall(function() {
       socket.destroy();
     }));
     req.end();
-  });
+  }));
+
 }));
