@@ -25,7 +25,7 @@ const URL = url.URL;
       [{port: port, hostname: '::'}, {protocol: 'http:'}]
     ];
 
-    var count = items.length;
+    let count = items.length;
 
     const maybeClose = common.mustCall((client) => {
       client.socket.destroy();
@@ -73,7 +73,7 @@ const URL = url.URL;
       [{port: port, hostname: '::', protocol: 'https:'}, opts]
     ];
 
-    var count = items.length;
+    let count = items.length;
 
     const maybeClose = common.mustCall((client) => {
       client.socket.destroy();

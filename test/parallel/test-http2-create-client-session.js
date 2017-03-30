@@ -22,7 +22,7 @@ function onStream(stream) {
 
 server.listen(0);
 
-var expected = count;
+let expected = count;
 
 server.on('listening', common.mustCall(function() {
 
@@ -32,13 +32,13 @@ server.on('listening', common.mustCall(function() {
 
     const headers = { ':path': '/' };
 
-    for (var n = 0; n < count; n++) {
+    for (let n = 0; n < count; n++) {
       const req = client.request(headers);
 
       req.on('response', common.mustCall(function(headers) {
         assert.strictEqual(headers[':status'], '200', 'status code is set');
         assert.strictEqual(headers['content-type'], 'text/html',
-                          'content type is set');
+                           'content type is set');
         assert(headers['date'], 'there is a date');
       }));
 
