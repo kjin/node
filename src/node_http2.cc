@@ -109,7 +109,7 @@ Http2Options::Http2Options(Environment* env) {
   // a bit differently. For now, let's let nghttp2 take care of it.
   nghttp2_option_set_builtin_recv_extension_type(options_, NGHTTP2_ALTSVC);
 
-  AliasedBuffer<uint32_t, v8::Uint32Array>& buffer =
+  AliasedBuffer<uint32_t, Uint32Array>& buffer =
       env->http2_state()->options_buffer;
   uint32_t flags = buffer[IDX_OPTIONS_FLAGS];
 
@@ -191,7 +191,7 @@ Http2Options::Http2Options(Environment* env) {
 
 void Http2Session::Http2Settings::Init() {
   entries_.AllocateSufficientStorage(IDX_SETTINGS_COUNT);
-  AliasedBuffer<uint32_t, v8::Uint32Array>& buffer =
+  AliasedBuffer<uint32_t, Uint32Array>& buffer =
       env()->http2_state()->settings_buffer;
   uint32_t flags = buffer[IDX_SETTINGS_COUNT];
 
@@ -303,7 +303,7 @@ inline Local<Value> Http2Session::Http2Settings::Pack() {
 inline void Http2Session::Http2Settings::Update(Environment* env,
                                                 Http2Session* session,
                                                 get_setting fn) {
-  AliasedBuffer<uint32_t, v8::Uint32Array>& buffer =
+  AliasedBuffer<uint32_t, Uint32Array>& buffer =
       env->http2_state()->settings_buffer;
   buffer[IDX_SETTINGS_HEADER_TABLE_SIZE] =
       fn(**session, NGHTTP2_SETTINGS_HEADER_TABLE_SIZE);
@@ -321,7 +321,7 @@ inline void Http2Session::Http2Settings::Update(Environment* env,
 
 // Initializes the shared TypedArray with the default settings values.
 inline void Http2Session::Http2Settings::RefreshDefaults(Environment* env) {
-  AliasedBuffer<uint32_t, v8::Uint32Array>& buffer =
+  AliasedBuffer<uint32_t, Uint32Array>& buffer =
       env->http2_state()->settings_buffer;
 
   buffer[IDX_SETTINGS_HEADER_TABLE_SIZE] =
@@ -556,7 +556,7 @@ Http2Session::~Http2Session() {
 }
 
 inline bool HasHttp2Observer(Environment* env) {
-  AliasedBuffer<uint32_t, v8::Uint32Array>& observers =
+  AliasedBuffer<uint32_t, Uint32Array>& observers =
       env->performance_state()->observers;
   return observers[performance::NODE_PERFORMANCE_ENTRY_TYPE_HTTP2] != 0;
 }
@@ -572,7 +572,7 @@ inline void Http2Stream::EmitStatistics() {
         static_cast<Http2StreamPerformanceEntry*>(data) };
     if (!HasHttp2Observer(env))
       return;
-    AliasedBuffer<double, v8::Float64Array>& buffer =
+    AliasedBuffer<double, Float64Array>& buffer =
         env->http2_state()->stream_stats_buffer;
     buffer[IDX_STREAM_STATS_ID] = entry->id();
     if (entry->first_byte() != 0) {
@@ -610,7 +610,7 @@ inline void Http2Session::EmitStatistics() {
         static_cast<Http2SessionPerformanceEntry*>(data) };
     if (!HasHttp2Observer(env))
       return;
-    AliasedBuffer<double, v8::Float64Array>& buffer =
+    AliasedBuffer<double, Float64Array>& buffer =
         env->http2_state()->session_stats_buffer;
     buffer[IDX_SESSION_STATS_TYPE] = entry->type();
     buffer[IDX_SESSION_STATS_PINGRTT] = entry->ping_rtt() / 1e6;
@@ -745,7 +745,7 @@ inline ssize_t Http2Session::OnCallbackPadding(size_t frameLen,
   CHECK(object()->Has(context, env()->ongetpadding_string()).FromJust());
 #endif
 
-  AliasedBuffer<uint32_t, v8::Uint32Array>& buffer =
+  AliasedBuffer<uint32_t, Uint32Array>& buffer =
       env()->http2_state()->padding_buffer;
   buffer[PADDING_BUF_FRAME_LENGTH] = frameLen;
   buffer[PADDING_BUF_MAX_PAYLOAD_LENGTH] = maxPayloadLen;
@@ -2341,7 +2341,7 @@ void Http2Session::RefreshState(const FunctionCallbackInfo<Value>& args) {
   ASSIGN_OR_RETURN_UNWRAP(&session, args.Holder());
   DEBUG_HTTP2SESSION(session, "refreshing state");
 
-  AliasedBuffer<double, v8::Float64Array>& buffer =
+  AliasedBuffer<double, Float64Array>& buffer =
       env->http2_state()->session_state_buffer;
 
   nghttp2_session* s = **session;
@@ -2654,7 +2654,7 @@ void Http2Stream::RefreshState(const FunctionCallbackInfo<Value>& args) {
 
   DEBUG_HTTP2STREAM(stream, "refreshing state");
 
-  AliasedBuffer<double, v8::Float64Array>& buffer =
+  AliasedBuffer<double, Float64Array>& buffer =
       env->http2_state()->stream_state_buffer;
 
   nghttp2_stream* str = **stream;
