@@ -1362,7 +1362,7 @@ void Http2Session::OnStreamAfterWriteImpl(WriteWrap* w, int status, void* ctx) {
 }
 
 // If the underlying nghttp2_session struct has data pending in its outbound
-// queue, MaybeScheduleWrite will schedule a SendPendingData() call to occcur
+// queue, MaybeScheduleWrite will schedule a SendPendingData() call to occur
 // on the next iteration of the Node.js event loop (using the SetImmediate
 // queue), but only if a write has not already been scheduled.
 void Http2Session::MaybeScheduleWrite() {
@@ -2354,7 +2354,7 @@ void Http2Session::RefreshSettings(const FunctionCallbackInfo<Value>& args) {
 
 // A TypedArray instance is shared between C++ and JS land to contain state
 // information of the current Http2Session. This updates the values in the
-// TypedRray so those can be read in JS land.
+// TypedArray so those can be read in JS land.
 void Http2Session::RefreshState(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Http2Session* session;
@@ -2712,7 +2712,7 @@ void Http2Session::AltSvc(int32_t id,
                                  origin, origin_len, value, value_len), 0);
 }
 
-// Submits an AltSvc frame to the sent to the connected peer.
+// Submits an AltSvc frame to be sent to the connected peer.
 void Http2Session::AltSvc(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Http2Session* session;
