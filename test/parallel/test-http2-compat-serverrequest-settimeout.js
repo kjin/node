@@ -13,6 +13,11 @@ server.on('request', (req, res) => {
   req.setTimeout(msecs, common.mustCall(() => {
     res.end();
   }));
+  // Note: The timeout is reset in the call to res.end() above. The 'timeout'
+  // event listener might be called more than once if it takes more than 1ms
+  // to close, so use the `once` event listener here. (This is more likely to
+  // happen in Node 8 than 10.)
+  res.once('timeout', common.mustCall());
   res.on('finish', common.mustCall(() => {
     req.setTimeout(msecs, common.mustNotCall());
     process.nextTick(() => {
