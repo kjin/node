@@ -121,7 +121,7 @@ TracingAgent::TracingAgent(Environment* env,
     : env_(env), main_thread_(main_thread) {}
 
 TracingAgent::~TracingAgent() {
-  trace_writer_.reset();
+  trace_writer_->reset();
   main_thread_->Post(
       std::make_unique<DestroyFrontendWrapperRequest>(frontend_object_id_));
 }
@@ -137,7 +137,7 @@ void TracingAgent::Wire(UberDispatcher* dispatcher) {
 
 DispatchResponse TracingAgent::start(
     std::unique_ptr<protocol::NodeTracing::TraceConfig> traceConfig) {
-  if (!trace_writer_.empty()) {
+  if (!trace_writer_->empty()) {
     return DispatchResponse::Error(
         "Call NodeTracing::end to stop tracing before updating the config");
   }
@@ -161,13 +161,13 @@ DispatchResponse TracingAgent::start(
         writer->agent()->AddClient(categories_set,
                                    std::make_unique<InspectorTraceWriter>(
                                        frontend_object_id_, main_thread_),
-                                   tracing::Agent::kIgnoreDefaultCategories);
+                                   tracing::kIgnoreDefaultCategories);
   }
   return DispatchResponse::OK();
 }
 
 DispatchResponse TracingAgent::stop() {
-  trace_writer_.reset();
+  trace_writer_->reset();
   frontend_->tracingComplete();
   return DispatchResponse::OK();
 }

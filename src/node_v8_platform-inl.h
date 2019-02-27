@@ -11,6 +11,15 @@
 #include "tracing/trace_event.h"
 #include "tracing/traced_value.h"
 
+#define NODE_USE_PERFETTO 1
+
+#if NODE_USE_PERFETTO
+#include "tracing/perfetto_agent.h"
+#include "tracing/perfetto/file_writer_consumer.h"
+#else
+#include "tracing/legacy_agent.h"
+#endif
+
 namespace node {
 
 // Ensures that __metadata trace events are only emitted
@@ -79,7 +88,11 @@ class NodeTraceStateObserver
 struct V8Platform {
 #if NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {
-    tracing_agent_.reset(new tracing::Agent());
+#if NODE_USE_PERFETTO
+      tracing_agent_.reset(new tracing::PerfettoAgent());
+#else
+      tracing_agent_.reset(new tracing::LegacyAgent());
+#endif
     node::tracing::TraceEventHelper::SetAgent(tracing_agent_.get());
     node::tracing::TracingController* controller =
         tracing_agent_->GetTracingController();
@@ -117,31 +130,43 @@ struct V8Platform {
   inline void StartTracingAgent() {
     // Attach a new NodeTraceWriter only if this function hasn't been called
     // before.
-    if (tracing_file_writer_.IsDefaultHandle()) {
+    if (tracing_file_writer_->IsDefaultHandle()) {
       std::vector<std::string> categories =
           SplitString(per_process::cli_options->trace_event_categories, ',');
-
+#if NODE_USE_PERFETTO
+      auto agent = reinterpret_cast<tracing::PerfettoAgent*>(
+        tracing_agent_.get());
+      tracing::FileWriterConsumerOptions options;
+      options.log_file_pattern = per_process::cli_options->trace_event_file_pattern.c_str();
+      options.buffer_size_kb = 4096;
+      options.file_size_kb = 1048576;
+      options.file_write_period_ms = 2000; // Every 2s
+      tracing_file_writer_ = agent->AddClient(
+        std::unique_ptr<tracing::TracingAgentClientConsumer>(
+          new tracing::FileWriterConsumer(options)));
+#else
       tracing_file_writer_ = tracing_agent_->AddClient(
           std::set<std::string>(std::make_move_iterator(categories.begin()),
                                 std::make_move_iterator(categories.end())),
           std::unique_ptr<tracing::AsyncTraceWriter>(
               new tracing::NodeTraceWriter(
                   per_process::cli_options->trace_event_file_pattern)),
-          tracing::Agent::kUseDefaultCategories);
+          tracing::kUseDefaultCategories);
+#endif
     }
   }
 
-  inline void StopTracingAgent() { tracing_file_writer_.reset(); }
+  inline void StopTracingAgent() { tracing_file_writer_->reset(); }
 
   inline tracing::AgentWriterHandle* GetTracingAgentWriter() {
-    return &tracing_file_writer_;
+    return tracing_file_writer_.get();
   }
 
   inline NodePlatform* Platform() { return platform_; }
 
   std::unique_ptr<NodeTraceStateObserver> trace_state_observer_;
   std::unique_ptr<tracing::Agent> tracing_agent_;
-  tracing::AgentWriterHandle tracing_file_writer_;
+  std::unique_ptr<tracing::AgentWriterHandle> tracing_file_writer_;
   NodePlatform* platform_;
 #else   // !NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {}

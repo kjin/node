@@ -9,6 +9,7 @@
 #include "env.h"
 #include "v8.h"
 #include "libplatform/libplatform.h"
+#include "tracing/legacy_agent.h"
 
 struct Argv {
  public:
@@ -67,7 +68,7 @@ class NodeTestFixture : public ::testing::Test {
   v8::Isolate* isolate_;
 
   static void SetUpTestCase() {
-    tracing_agent.reset(new node::tracing::Agent());
+    tracing_agent.reset(new node::tracing::LegacyAgent());
     node::tracing::TraceEventHelper::SetAgent(tracing_agent.get());
     CHECK_EQ(0, uv_loop_init(&current_loop));
     platform.reset(static_cast<node::NodePlatform*>(
