@@ -3,6 +3,9 @@
 
 #include "agent.h"
 
+#include <list>
+#include <unordered_map>
+
 namespace node {
 namespace tracing {
 

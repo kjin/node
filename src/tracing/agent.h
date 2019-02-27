@@ -7,10 +7,8 @@
 #include "util.h"
 #include "node_mutex.h"
 
-#include <list>
 #include <set>
 #include <string>
-#include <unordered_map>
 
 namespace node {
 namespace tracing {

@@ -1,10 +1,12 @@
 #ifndef SRC_TRACING_PERFETTO_AGENT_H_
 #define SRC_TRACING_PERFETTO_AGENT_H_
 
-#include "perfetto/tracing/core/shared_memory.h"
-#include "perfetto/tracing/core/tracing_service.h"
-#include "perfetto/base/task_runner.h"
 #include "tracing/agent.h"
+#include "tracing/perfetto/node_task_runner.h"
+#include "tracing/perfetto/node_consumer.h"
+#include "tracing/perfetto/node_producer.h"
+
+#include "perfetto/tracing/core/tracing_service.h"
 
 using v8::platform::tracing::TraceConfig;
 using v8::platform::tracing::TraceObject;
@@ -12,43 +14,9 @@ using node::tracing::AgentWriterHandle;
 using node::tracing::AsyncTraceWriter;
 using node::tracing::TracingController;
 using node::tracing::UseDefaultCategoryMode;
-using perfetto::TracingService;
 
 namespace node {
 namespace tracing {
-
-class PerfettoAgent;
-class NodeTaskRunner;
-class DefaultNodeConsumer;
-
-class PerfettoAgentWriterHandle : public AgentWriterHandle {
- public:
-  inline PerfettoAgentWriterHandle() {}
-  inline ~PerfettoAgentWriterHandle() { reset(); }
-
-  inline bool empty() const override { return agent_ == nullptr; }
-  inline void reset() override {}
-
-  inline void Enable(const std::set<std::string>& categories) override {}
-  inline void Disable(const std::set<std::string>& categories) override {}
-
-  inline bool IsDefaultHandle() override { return false; }
-
-  inline Agent* agent() override;
-
-  inline v8::TracingController* GetTracingController() override;
-
-  PerfettoAgentWriterHandle(const PerfettoAgentWriterHandle& other) = delete;
-  PerfettoAgentWriterHandle& operator=(const PerfettoAgentWriterHandle& other) = delete;
-
- private:
-  inline PerfettoAgentWriterHandle(PerfettoAgent* agent, int id) : agent_(agent), id_(id) {}
-
-  PerfettoAgent* agent_ = nullptr;
-  int id_;
-
-  friend class PerfettoAgent;
-};
 
 class PerfettoAgent : public Agent {
  public:
@@ -78,20 +46,14 @@ class PerfettoAgent : public Agent {
 
   TraceConfig* CreateTraceConfig() const override;
  private:
-  void Start();
-  void Stop();
+  enum { kDefaultHandleId = -1 };
+  std::unordered_map<int, std::unique_ptr<NodeConsumer>> consumers_;
+  std::unique_ptr<NodeProducer> producer_;
+  size_t next_writer_id_ = 0;
 
-  std::unique_ptr<TracingService> tracing_service_;
-  std::unique_ptr<TracingController> tracing_controller_;
+  std::unique_ptr<perfetto::TracingService> tracing_service_;
   std::unique_ptr<NodeTaskRunner> task_runner_;
-  std::unique_ptr<DefaultNodeConsumer> default_consumer_;
 };
-
-Agent* PerfettoAgentWriterHandle::agent() { return agent_; }
-
-v8::TracingController* PerfettoAgentWriterHandle::GetTracingController() {
-  return agent_->GetTracingController();
-}
 
 }
 }
