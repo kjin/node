@@ -13,12 +13,13 @@ using node::tracing::AsyncTraceWriter;
 using node::tracing::TracingController;
 using node::tracing::UseDefaultCategoryMode;
 using perfetto::TracingService;
-using perfetto::base::TaskRunner;
 
 namespace node {
 namespace tracing {
 
 class PerfettoAgent;
+class NodeTaskRunner;
+class DefaultNodeConsumer;
 
 class PerfettoAgentWriterHandle : public AgentWriterHandle {
  public:
@@ -82,7 +83,8 @@ class PerfettoAgent : public Agent {
 
   std::unique_ptr<TracingService> tracing_service_;
   std::unique_ptr<TracingController> tracing_controller_;
-  std::unique_ptr<TaskRunner> task_runner_;
+  std::unique_ptr<NodeTaskRunner> task_runner_;
+  std::unique_ptr<DefaultNodeConsumer> default_consumer_;
 };
 
 Agent* PerfettoAgentWriterHandle::agent() { return agent_; }
