@@ -10,6 +10,8 @@
 #include "tracing/node_trace_writer.h"
 #include "tracing/trace_event.h"
 #include "tracing/traced_value.h"
+#include "tracing/legacy_agent.h"
+#include "tracing/perfetto_agent.h"
 
 namespace node {
 
@@ -79,7 +81,7 @@ class NodeTraceStateObserver
 struct V8Platform {
 #if NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {
-    tracing_agent_.reset(new tracing::Agent());
+    tracing_agent_.reset(new tracing::LegacyAgent());
     node::tracing::TraceEventHelper::SetAgent(tracing_agent_.get());
     node::tracing::TracingController* controller =
         tracing_agent_->GetTracingController();
@@ -117,7 +119,7 @@ struct V8Platform {
   inline void StartTracingAgent() {
     // Attach a new NodeTraceWriter only if this function hasn't been called
     // before.
-    if (tracing_file_writer_.IsDefaultHandle()) {
+    if (tracing_file_writer_->IsDefaultHandle()) {
       std::vector<std::string> categories =
           SplitString(per_process::cli_options->trace_event_categories, ',');
 
@@ -127,21 +129,21 @@ struct V8Platform {
           std::unique_ptr<tracing::AsyncTraceWriter>(
               new tracing::NodeTraceWriter(
                   per_process::cli_options->trace_event_file_pattern)),
-          tracing::Agent::kUseDefaultCategories);
+          tracing::kUseDefaultCategories);
     }
   }
 
-  inline void StopTracingAgent() { tracing_file_writer_.reset(); }
+  inline void StopTracingAgent() { tracing_file_writer_->reset(); }
 
   inline tracing::AgentWriterHandle* GetTracingAgentWriter() {
-    return &tracing_file_writer_;
+    return tracing_file_writer_.get();
   }
 
   inline NodePlatform* Platform() { return platform_; }
 
   std::unique_ptr<NodeTraceStateObserver> trace_state_observer_;
   std::unique_ptr<tracing::Agent> tracing_agent_;
-  tracing::AgentWriterHandle tracing_file_writer_;
+  std::unique_ptr<tracing::AgentWriterHandle> tracing_file_writer_;
   NodePlatform* platform_;
 #else   // !NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {}
