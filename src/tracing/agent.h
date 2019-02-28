@@ -68,16 +68,14 @@ class AgentWriterHandle {
 class Agent {
  public:
   virtual ~Agent() {}
+  virtual void Initialize(v8::Isolate* isolate) {}
   virtual TracingController* GetTracingController() = 0;
   virtual std::unique_ptr<AgentWriterHandle> AddClient(const std::set<std::string>& categories,
                               std::unique_ptr<AsyncTraceWriter> writer,
                               enum UseDefaultCategoryMode mode) = 0;
   virtual std::unique_ptr<AgentWriterHandle> DefaultHandle() = 0;
   virtual std::string GetEnabledCategories() const = 0;
-  virtual void AppendTraceEvent(TraceObject* trace_event) = 0;
   virtual void AddMetadataEvent(std::unique_ptr<TraceObject> event) = 0;
-  virtual void Flush(bool blocking) = 0;
-  virtual TraceConfig* CreateTraceConfig() const = 0;
 };
 
 }  // namespace tracing

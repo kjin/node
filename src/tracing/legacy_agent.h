@@ -66,13 +66,13 @@ class LegacyAgent : public Agent {
   std::string GetEnabledCategories() const override;
 
   // Writes to all writers registered through AddClient().
-  void AppendTraceEvent(TraceObject* trace_event) override;
+  void AppendTraceEvent(TraceObject* trace_event);
 
   void AddMetadataEvent(std::unique_ptr<TraceObject> event) override;
   // Flushes all writers registered through AddClient().
-  void Flush(bool blocking) override;
+  void Flush(bool blocking);
 
-  TraceConfig* CreateTraceConfig() const override;
+  TraceConfig* CreateTraceConfig() const;
 
  private:
   friend class LegacyAgentWriterHandle;

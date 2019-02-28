@@ -3,31 +3,28 @@
 
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/tracing/core/trace_config.h"
 #include "tracing/agent.h"
 
 namespace node {
 namespace tracing {
 
-// class TracePacket;
+class PerfettoConsumerHandle;
 
 class NodeConsumer : public perfetto::Consumer {
  public:
   void Connect(perfetto::TracingService* service);
-  std::unique_ptr<AgentWriterHandle> CreateHandle(Agent* agent);
  protected:
-//   void OnConnect() override {}
-//   void OnDisconnect() override {}
-//   void OnTracingDisabled() override {}
-//   void OnTraceData(std::vector<perfetto::TracePacket> packets,
-//                    bool has_more) override {}
-//   void OnDetach(bool success) override {}
-//   void OnAttach(bool success, const perfetto::TraceConfig&) override {}
-//   void OnTraceStats(bool success, const perfetto::TraceStats&) override {}
-
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint> svc_endpoint_;
+  perfetto::TraceConfig trace_config_;
+  bool is_default_ = false;
+
+  friend class PerfettoConsumerHandle;
 };
 
 class DefaultNodeConsumer : public NodeConsumer {
+ public:
+  DefaultNodeConsumer();
  private:
   void OnConnect() override { PERFETTO_DLOG("Node consumer connected"); }
   void OnDisconnect() override { PERFETTO_DLOG("Node consumer disconnected"); }
@@ -53,6 +50,9 @@ class DefaultNodeConsumer : public NodeConsumer {
   }
 };
 
+/**
+ * A wrapper around AsyncTraceWriter. Not necessarily efficient.
+ */
 class AsyncTraceWriterConsumer : public NodeConsumer {
  public:
   AsyncTraceWriterConsumer(std::unique_ptr<AsyncTraceWriter> writer): writer_(std::move(writer)) {}
@@ -80,13 +80,17 @@ class AsyncTraceWriterConsumer : public NodeConsumer {
     PERFETTO_DLOG("Node consumer OnTraceStats");
   }
 
-  std::unique_ptr<perfetto::TracingService::ConsumerEndpoint> svc_endpoint_;
   std::unique_ptr<AsyncTraceWriter> writer_;
 };
 
 class PerfettoConsumerHandle : public AgentWriterHandle {
  public:
-  inline ~PerfettoConsumerHandle() { reset(); }
+  inline PerfettoConsumerHandle(
+    std::unique_ptr<NodeConsumer> consumer,
+    Agent* agent) : agent_(agent), consumer_(std::move(consumer)) {}
+  ~PerfettoConsumerHandle() {}
+
+  // TODO(kjin): Needs assignment overloads.
 
   inline bool empty() const override { return agent_ == nullptr; }
   inline void reset() override {}
@@ -94,7 +98,7 @@ class PerfettoConsumerHandle : public AgentWriterHandle {
   void Enable(const std::set<std::string>& categories) override;
   void Disable(const std::set<std::string>& categories) override;
 
-  inline bool IsDefaultHandle() override { return false; }
+  inline bool IsDefaultHandle() override { return consumer_->is_default_; }
 
   inline Agent* agent() override { return agent_; }
 
@@ -102,14 +106,8 @@ class PerfettoConsumerHandle : public AgentWriterHandle {
     return agent_->GetTracingController();
   }
  private:
-  inline PerfettoConsumerHandle(
-    Agent* agent,
-    perfetto::TracingService::ConsumerEndpoint* consumer) : agent_(agent), consumer_(consumer) {}
-
   Agent* agent_ = nullptr;
-  perfetto::TracingService::ConsumerEndpoint* consumer_;
-
-  friend class NodeConsumer;
+  std::unique_ptr<NodeConsumer> consumer_;
 };
 
 }

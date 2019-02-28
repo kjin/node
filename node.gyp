@@ -483,6 +483,7 @@
         'src/tracing/node_trace_writer.cc',
         'src/tracing/perfetto/node_consumer.cc',
         'src/tracing/perfetto/node_producer.cc',
+        'src/tracing/perfetto/node_task_runner.cc',
         'src/tracing/perfetto_agent.cc',
         'src/tracing/trace_event.cc',
         'src/tracing/traced_value.cc',

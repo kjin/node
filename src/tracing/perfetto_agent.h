@@ -6,6 +6,7 @@
 #include "tracing/perfetto/node_consumer.h"
 #include "tracing/perfetto/node_producer.h"
 
+#include "v8.h"
 #include "perfetto/tracing/core/tracing_service.h"
 
 using v8::platform::tracing::TraceConfig;
@@ -37,19 +38,10 @@ class PerfettoAgent : public Agent {
   // Returns a comma-separated list of enabled categories.
   std::string GetEnabledCategories() const override;
 
-  // Writes to all writers registered through AddClient().
-  void AppendTraceEvent(TraceObject* trace_event) override;
-
   void AddMetadataEvent(std::unique_ptr<TraceObject> event) override;
-  // Flushes all writers registered through AddClient().
-  void Flush(bool blocking) override;
-
-  TraceConfig* CreateTraceConfig() const override;
  private:
-  enum { kDefaultHandleId = -1 };
-  std::unordered_map<int, std::unique_ptr<NodeConsumer>> consumers_;
+  std::unique_ptr<AgentWriterHandle> default_consumer_handle_;
   std::unique_ptr<NodeProducer> producer_;
-  size_t next_writer_id_ = 0;
 
   std::unique_ptr<perfetto::TracingService> tracing_service_;
   std::unique_ptr<NodeTaskRunner> task_runner_;

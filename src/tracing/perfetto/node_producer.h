@@ -38,7 +38,7 @@ class NodeProducer : public perfetto::Producer {
   void StartDataSource(perfetto::DataSourceInstanceID,
                        const perfetto::DataSourceConfig& cfg) override {
     // target_buffer_ = cfg.target_buffer();
-    PERFETTO_ILOG("v8 perfetto producer: starting tracing for data source: %s",
+    PERFETTO_ILOG("Node perfetto producer: starting tracing for data source: %s",
                   cfg.name().c_str());
   }
 

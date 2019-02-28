@@ -12,17 +12,15 @@ namespace tracing {
 PerfettoAgent::PerfettoAgent()
   : producer_(new NodeProducer()),
     task_runner_(new NodeTaskRunner()) {
-  task_runner_->Start();
   tracing_service_ = perfetto::TracingService::CreateInstance(
     std::unique_ptr<perfetto::SharedMemory::Factory>(new NodeShmemFactory()),
     task_runner_.get()
   );
   producer_->Connect(tracing_service_.get());
-  consumers_[kDefaultHandleId] = std::unique_ptr<NodeConsumer>(new DefaultNodeConsumer());
-  consumers_[kDefaultHandleId]->Connect(tracing_service_.get());
+  std::unique_ptr<NodeConsumer> default_consumer = std::unique_ptr<NodeConsumer>(new DefaultNodeConsumer());
+  default_consumer->Connect(tracing_service_.get());
+  default_consumer_handle_ = std::unique_ptr<PerfettoConsumerHandle>(new PerfettoConsumerHandle(std::move(default_consumer), this));
 }
-
-PerfettoAgent::~PerfettoAgent() {}
 
 TracingController* PerfettoAgent::GetTracingController() {
   return producer_->GetTracingController();
@@ -33,38 +31,24 @@ std::unique_ptr<AgentWriterHandle> PerfettoAgent::AddClient(
   const std::set<std::string>& categories,
   std::unique_ptr<AsyncTraceWriter> writer,
   enum UseDefaultCategoryMode mode) {
-    size_t id = next_writer_id_++;
-    consumers_[id] = std::unique_ptr<NodeConsumer>(new AsyncTraceWriterConsumer(std::move(writer)));
-    consumers_[id]->Connect(tracing_service_.get());
-    return consumers_[id]->CreateHandle(this);
+    std::unique_ptr<NodeConsumer> consumer = std::unique_ptr<NodeConsumer>(new AsyncTraceWriterConsumer(std::move(writer)));
+    consumer->Connect(tracing_service_.get());
+    return std::unique_ptr<PerfettoConsumerHandle>(new PerfettoConsumerHandle(std::move(consumer), this));
 }
 
 std::unique_ptr<AgentWriterHandle> PerfettoAgent::DefaultHandle() {
-  return consumers_[kDefaultHandleId]->CreateHandle(this);
+  // Assume that this value can only be retrieved once.
+  CHECK(default_consumer_handle_);
+  return std::move(default_consumer_handle_);
 }
 
 std::string PerfettoAgent::GetEnabledCategories() const { return ""; } // TODO
 
-void PerfettoAgent::AppendTraceEvent(TraceObject* trace_event) {
-  // This should never get called, because the Tracing Controller communicates
-  // through Perfetto rather than through the Agent.
-  UNREACHABLE();
-}
-
 void PerfettoAgent::AddMetadataEvent(std::unique_ptr<TraceObject> event) {
-  // This should never get called, because the Tracing Controller communicates
-  // through Perfetto rather than through the Agent.
-  UNREACHABLE();
-}
-
-void PerfettoAgent::Flush(bool blocking) {
-  // This should never get called, because the Tracing Controller communicates
-  // through Perfetto rather than through the Agent.
-  UNREACHABLE();
-}
-
-TraceConfig* PerfettoAgent::CreateTraceConfig() const {
-  return new TraceConfig();
+  // This is an artifact of the way the tracing controller interacts with
+  // the agent.
+  // Ideally, this would not be on the Agent interface at all.
+  // TODO(kjin): Implement this.
 }
 
 }
