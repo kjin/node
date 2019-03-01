@@ -9,6 +9,8 @@
 #include "v8.h"
 #include "perfetto/tracing/core/tracing_service.h"
 
+#include <list>
+
 using v8::platform::tracing::TraceConfig;
 using v8::platform::tracing::TraceObject;
 using node::tracing::AgentWriterHandle;
@@ -23,6 +25,8 @@ class PerfettoAgent : public Agent {
  public:
   PerfettoAgent();
   ~PerfettoAgent();
+
+  void Initialize() override;
   
   TracingController* GetTracingController() override;
 
@@ -40,11 +44,26 @@ class PerfettoAgent : public Agent {
 
   void AddMetadataEvent(std::unique_ptr<TraceObject> event) override;
  private:
-  std::unique_ptr<AgentWriterHandle> default_consumer_handle_;
+  // void Connect(NodeConsumer* consumer);
+  
+  // A Perfetto producer that owns the v8 TracingController. Any traces created
+  // through the tracing controller are sent to the tracing service via this
+  // producer.
   std::unique_ptr<NodeProducer> producer_;
-
+  // A handle to the default Perfetto consumer. This consumer doesn't read any
+  // trace data; it's only responsible for sending tracing configuration to
+  // producers.
+  // When DefaultHandle is called, ownership will be transferred there.
+  std::unique_ptr<PerfettoConsumerHandle> consumer_handle_;
+  // Weak pointers to consumers created by this agent, including the default
+  // one. We need these pointers so that we can force disconnect all consumers
+  // before tearing down the tracing service (see the destructor).
+  std::list<std::weak_ptr<NodeConsumer>> consumers_;
+  // A task runner with which the Perfetto service will post tasks. It runs all
+  // tasks on the foreground thread.
+  std::unique_ptr<DelayedNodeTaskRunner> task_runner_;
+  // The Perfetto tracing service.
   std::unique_ptr<perfetto::TracingService> tracing_service_;
-  std::unique_ptr<NodeTaskRunner> task_runner_;
 };
 
 }

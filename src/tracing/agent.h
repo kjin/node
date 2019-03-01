@@ -68,7 +68,7 @@ class AgentWriterHandle {
 class Agent {
  public:
   virtual ~Agent() {}
-  virtual void Initialize(v8::Isolate* isolate) {}
+  virtual void Initialize() {}
   virtual TracingController* GetTracingController() = 0;
   virtual std::unique_ptr<AgentWriterHandle> AddClient(const std::set<std::string>& categories,
                               std::unique_ptr<AsyncTraceWriter> writer,

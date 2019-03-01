@@ -10,12 +10,18 @@
 namespace node {
 namespace tracing {
 
+/**
+ * A Perfetto producer that wraps the v8 Tracing Controller.
+ * Trace events written through the tracing controller will get sent to the
+ * Perfetto tracing service here.
+ */
 class NodeProducer : public perfetto::Producer {
  public:
   NodeProducer();
   ~NodeProducer() {}
   TracingController* GetTracingController() { return tracing_controller_.get(); }
   void Connect(perfetto::TracingService* service);
+  void Disconnect();
  private:
   void OnConnect() override {
     PERFETTO_DLOG("Node producer connected");
@@ -47,8 +53,8 @@ class NodeProducer : public perfetto::Producer {
   void Flush(::perfetto::FlushRequestID,
              const perfetto::DataSourceInstanceID*, size_t) override {}
 
-  std::unique_ptr<perfetto::TracingService::ProducerEndpoint> svc_endpoint_;
   std::unique_ptr<TracingController> tracing_controller_;
+  std::unique_ptr<perfetto::TracingService::ProducerEndpoint> svc_endpoint_;
 };
 
 }

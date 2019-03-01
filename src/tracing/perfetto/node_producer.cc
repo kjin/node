@@ -11,5 +11,9 @@ void NodeProducer::Connect(perfetto::TracingService* service) {
   svc_endpoint_ = service->ConnectProducer(this, 0, "node.perfetto-producer");
 }
 
+void NodeProducer::Disconnect() {
+  svc_endpoint_.reset(nullptr);
+}
+
 }
 }
