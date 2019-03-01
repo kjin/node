@@ -1,5 +1,6 @@
 #include "tracing/perfetto_agent.h"
 #include "tracing/perfetto/node_shared_memory.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
 
 using v8::platform::tracing::TraceObject;
 using perfetto::base::TaskRunner;
@@ -7,60 +8,75 @@ using perfetto::base::TaskRunner;
 namespace node {
 namespace tracing {
 
+class TraceControllerNodeProducer : public NodeProducer {
+  void OnConnect() override {
+    PERFETTO_DLOG("Node producer connected");
+    perfetto::DataSourceDescriptor ds_desc;
+    ds_desc.set_name("node");
+    svc_endpoint_->RegisterDataSource(ds_desc);
+  }
+
+  void OnDisconnect() override {
+    PERFETTO_DLOG("Node producer disconnected");
+  }
+
+  void OnTracingSetup() override {
+    PERFETTO_DLOG("Node producer OnTracingSetup(), registering data source");
+  }
+
+  void SetupDataSource(perfetto::DataSourceInstanceID,
+                       const perfetto::DataSourceConfig&) override {}
+
+  void StartDataSource(perfetto::DataSourceInstanceID,
+                       const perfetto::DataSourceConfig& cfg) override {
+    // target_buffer_ = cfg.target_buffer();
+    PERFETTO_ILOG("Node perfetto producer: starting tracing for data source: %s",
+                  cfg.name().c_str());
+  }
+};
+
+class NoopAgentWriterHandle : public AgentWriterHandle {
+ public:
+  NoopAgentWriterHandle(Agent* agent, std::unique_ptr<AsyncTraceWriter> writer, bool is_default): agent_(agent), writer_(std::move(writer)), is_default_(is_default) {}
+  ~NoopAgentWriterHandle() {}
+  bool empty() const override { return agent_ != nullptr; }
+  void reset() override { agent_ = nullptr; }
+
+  void Enable(const std::set<std::string>& categories) override {}
+  void Disable(const std::set<std::string>& categories) override {}
+
+  bool IsDefaultHandle() override { return is_default_; }
+
+  Agent* agent() override { return agent_; }
+
+  v8::TracingController* GetTracingController() override { return agent_->GetTracingController(); }
+ private:
+  Agent* agent_;
+  std::unique_ptr<AsyncTraceWriter> writer_;
+  bool is_default_;
+};
+
 // PerfettoAgent implementation
 
 PerfettoAgent::PerfettoAgent()
-  : producer_(new NodeProducer()),
-    task_runner_(new DelayedNodeTaskRunner()) {
-  tracing_service_ = perfetto::TracingService::CreateInstance(
-    std::unique_ptr<perfetto::SharedMemory::Factory>(new NodeShmemFactory()),
-    task_runner_.get()
-  );
-  producer_->Connect(tracing_service_.get());
-  std::shared_ptr<NodeConsumer> default_consumer(new DefaultNodeConsumer());
-  default_consumer->Connect(tracing_service_.get());
-  consumers_.push_back(default_consumer);
-  consumer_handle_ = std::unique_ptr<PerfettoConsumerHandle>(new PerfettoConsumerHandle(default_consumer, this, task_runner_.get()));
-}
-
-PerfettoAgent::~PerfettoAgent() {
-  // All producers and consumers must be disconnected first before the
-  // tracing service instance can be destroyed.
-  producer_.reset(nullptr);
-  for (auto itr = consumers_.begin(); itr != consumers_.end(); itr++) {
-    if (!itr->expired()) {
-      std::shared_ptr<NodeConsumer> consumer(*itr);
-      consumer->Disconnect();
-    }
-  }
-  tracing_service_.reset(nullptr);
+  : node_tracing_(new NodeTracing()), tracing_controller_(new TracingController()) {
+  tracing_controller_->Initialize(nullptr);
 }
 
 void PerfettoAgent::Initialize() {
-  // The task runner can't enqueue tasks until the Node platform is initialized.
-  // Connecting consumers and producers will cause the tracing service to
-  // post tasks.
-  task_runner_->Start();
-}
-
-TracingController* PerfettoAgent::GetTracingController() {
-  return producer_->GetTracingController();
+  node_tracing_->Initialize();
 }
 
 std::unique_ptr<AgentWriterHandle> PerfettoAgent::AddClient(
   const std::set<std::string>& categories,
   std::unique_ptr<AsyncTraceWriter> writer,
   enum UseDefaultCategoryMode mode) {
-    std::shared_ptr<NodeConsumer> consumer = std::unique_ptr<NodeConsumer>(new AsyncTraceWriterConsumer(std::move(writer)));
-    consumer->Connect(tracing_service_.get());
-    consumers_.push_back(consumer);
-    return std::unique_ptr<PerfettoConsumerHandle>(new PerfettoConsumerHandle(std::move(consumer), this, task_runner_.get()));
+    return std::unique_ptr<AgentWriterHandle>(new NoopAgentWriterHandle(this, std::move(writer), false));
 }
 
 std::unique_ptr<AgentWriterHandle> PerfettoAgent::DefaultHandle() {
   // Assume that this value can only be retrieved once.
-  CHECK(consumer_handle_);
-  return std::move(consumer_handle_);
+  return std::unique_ptr<AgentWriterHandle>(new NoopAgentWriterHandle(this, std::unique_ptr<AsyncTraceWriter>(nullptr), true));
 }
 
 std::string PerfettoAgent::GetEnabledCategories() const { return ""; } // TODO

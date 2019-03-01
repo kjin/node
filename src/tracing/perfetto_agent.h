@@ -3,8 +3,7 @@
 
 #include "tracing/agent.h"
 #include "tracing/perfetto/node_task_runner.h"
-#include "tracing/perfetto/node_consumer.h"
-#include "tracing/perfetto/node_producer.h"
+#include "tracing/perfetto/node_tracing.h"
 
 #include "v8.h"
 #include "perfetto/tracing/core/tracing_service.h"
@@ -24,11 +23,13 @@ namespace tracing {
 class PerfettoAgent : public Agent {
  public:
   PerfettoAgent();
-  ~PerfettoAgent();
+  ~PerfettoAgent() {}
 
   void Initialize() override;
   
-  TracingController* GetTracingController() override;
+  TracingController* GetTracingController() override {
+    return tracing_controller_.get();
+  }
 
   // Destroying the handle disconnects the client
   std::unique_ptr<AgentWriterHandle> AddClient(const std::set<std::string>& categories,
@@ -44,26 +45,8 @@ class PerfettoAgent : public Agent {
 
   void AddMetadataEvent(std::unique_ptr<TraceObject> event) override;
  private:
-  // void Connect(NodeConsumer* consumer);
-  
-  // A Perfetto producer that owns the v8 TracingController. Any traces created
-  // through the tracing controller are sent to the tracing service via this
-  // producer.
-  std::unique_ptr<NodeProducer> producer_;
-  // A handle to the default Perfetto consumer. This consumer doesn't read any
-  // trace data; it's only responsible for sending tracing configuration to
-  // producers.
-  // When DefaultHandle is called, ownership will be transferred there.
-  std::unique_ptr<PerfettoConsumerHandle> consumer_handle_;
-  // Weak pointers to consumers created by this agent, including the default
-  // one. We need these pointers so that we can force disconnect all consumers
-  // before tearing down the tracing service (see the destructor).
-  std::list<std::weak_ptr<NodeConsumer>> consumers_;
-  // A task runner with which the Perfetto service will post tasks. It runs all
-  // tasks on the foreground thread.
-  std::unique_ptr<DelayedNodeTaskRunner> task_runner_;
-  // The Perfetto tracing service.
-  std::unique_ptr<perfetto::TracingService> tracing_service_;
+  std::unique_ptr<NodeTracing> node_tracing_;
+  std::shared_ptr<TracingController> tracing_controller_;
 };
 
 }
