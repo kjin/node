@@ -42,6 +42,31 @@ class LegacyAgentWriterHandle : public AgentWriterHandle {
   friend class LegacyAgent;
 };
 
+class LegacyTracingController : public TracingController, public v8::platform::tracing::TracingController {
+ public:
+  int64_t CurrentTimestampMicroseconds() override {
+    return uv_hrtime() / 1000;
+  }
+  void AddMetadataEvent(
+      const unsigned char* category_group_enabled,
+      const char* name,
+      int num_args,
+      const char** arg_names,
+      const unsigned char* arg_types,
+      const uint64_t* arg_values,
+      std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
+      unsigned int flags) override;
+  void Initialize(TraceBuffer* trace_buffer) override {
+    return v8::platform::tracing::TracingController::Initialize(trace_buffer);
+  }
+  void StartTracing(TraceConfig* trace_config) override {
+    return v8::platform::tracing::TracingController::StartTracing(trace_config);
+  }
+  void StopTracing() override {
+    return v8::platform::tracing::TracingController::StopTracing();
+  }
+};
+
 class LegacyAgent : public Agent {
  public:
   LegacyAgent();

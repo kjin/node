@@ -1,5 +1,6 @@
 #include "tracing/perfetto_agent.h"
 #include "tracing/perfetto/node_shared_memory.h"
+#include "tracing/perfetto/tracing_controller.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/trace_packet.h"
@@ -133,7 +134,7 @@ class NoopAgentWriterHandle : public AgentWriterHandle {
 // PerfettoAgent implementation
 
 PerfettoAgent::PerfettoAgent()
-  : node_tracing_(new NodeTracing()), tracing_controller_(new TracingController()) {
+  : node_tracing_(new NodeTracing()), tracing_controller_(new PerfettoTracingController()) {
   tracing_controller_->Initialize(nullptr);
   producer_handle_ = node_tracing_->ConnectProducer(std::unique_ptr<NodeProducer>(
     new TraceControllerNodeProducer(tracing_controller_.get())));

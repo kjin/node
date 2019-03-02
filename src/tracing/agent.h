@@ -15,6 +15,7 @@ namespace tracing {
 
 using v8::platform::tracing::TraceConfig;
 using v8::platform::tracing::TraceObject;
+using v8::platform::tracing::TraceBuffer;
 
 class Agent;
 
@@ -26,14 +27,10 @@ class AsyncTraceWriter {
   virtual void InitializeOnThread(uv_loop_t* loop) {}
 };
 
-class TracingController : public v8::platform::tracing::TracingController {
+class TracingController : public v8::TracingController {
  public:
-  TracingController() : v8::platform::tracing::TracingController() {}
-
-  int64_t CurrentTimestampMicroseconds() override {
-    return uv_hrtime() / 1000;
-  }
-  void AddMetadataEvent(
+  virtual void Initialize(TraceBuffer* trace_buffer) = 0;
+  virtual void AddMetadataEvent(
       const unsigned char* category_group_enabled,
       const char* name,
       int num_args,
@@ -41,7 +38,9 @@ class TracingController : public v8::platform::tracing::TracingController {
       const unsigned char* arg_types,
       const uint64_t* arg_values,
       std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
-      unsigned int flags);
+      unsigned int flags) = 0;
+  virtual void StartTracing(TraceConfig* trace_config) = 0;
+  virtual void StopTracing() = 0;
 };
 
 enum UseDefaultCategoryMode {
