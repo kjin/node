@@ -67,6 +67,7 @@ class NodeTraceWriter : public AsyncTraceWriter {
   std::ostringstream stream_;
   std::unique_ptr<TraceWriter> json_trace_writer_;
   bool exited_ = false;
+  bool initialized_ = false;
 };
 
 }  // namespace tracing

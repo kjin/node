@@ -1,6 +1,7 @@
 #include "tracing/perfetto_agent.h"
 #include "tracing/perfetto/node_shared_memory.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/trace_config.h"
 
 using v8::platform::tracing::TraceObject;
 using perfetto::base::TaskRunner;
@@ -8,31 +9,42 @@ using perfetto::base::TaskRunner;
 namespace node {
 namespace tracing {
 
-class TraceControllerNodeProducer : public NodeProducer {
+class TestNodeConsumer : public NodeConsumer {
   void OnConnect() override {
-    PERFETTO_DLOG("Node producer connected");
+    perfetto::TraceConfig config;
+    svc_endpoint_->EnableTracing(config);
+  }
+};
+
+class TraceControllerNodeProducer : public NodeProducer {
+ public:
+  TraceControllerNodeProducer(TracingController* trace_controller): trace_controller_(trace_controller) {}
+ private:
+  void OnConnect() override {
+    printf("Connected\n");
     perfetto::DataSourceDescriptor ds_desc;
     ds_desc.set_name("node");
     svc_endpoint_->RegisterDataSource(ds_desc);
   }
 
   void OnDisconnect() override {
-    PERFETTO_DLOG("Node producer disconnected");
+    printf("Disconnected\n");
   }
 
   void OnTracingSetup() override {
-    PERFETTO_DLOG("Node producer OnTracingSetup(), registering data source");
+    printf("Tracing set up\n");
   }
 
   void SetupDataSource(perfetto::DataSourceInstanceID,
-                       const perfetto::DataSourceConfig&) override {}
+                       const perfetto::DataSourceConfig&) override {
+    printf("Data source set up\n");
+  }
 
   void StartDataSource(perfetto::DataSourceInstanceID,
                        const perfetto::DataSourceConfig& cfg) override {
-    // target_buffer_ = cfg.target_buffer();
-    PERFETTO_ILOG("Node perfetto producer: starting tracing for data source: %s",
-                  cfg.name().c_str());
+    printf("Data source started\n");
   }
+  TracingController* trace_controller_;
 };
 
 class NoopAgentWriterHandle : public AgentWriterHandle {
@@ -61,6 +73,9 @@ class NoopAgentWriterHandle : public AgentWriterHandle {
 PerfettoAgent::PerfettoAgent()
   : node_tracing_(new NodeTracing()), tracing_controller_(new TracingController()) {
   tracing_controller_->Initialize(nullptr);
+  producer_handle_ = node_tracing_->ConnectProducer(std::unique_ptr<NodeProducer>(
+    new TraceControllerNodeProducer(tracing_controller_.get())));
+  consumer_handle_ = node_tracing_->ConnectConsumer(std::unique_ptr<NodeConsumer>(new TestNodeConsumer()));
 }
 
 void PerfettoAgent::Initialize() {
