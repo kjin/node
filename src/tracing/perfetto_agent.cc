@@ -2,9 +2,17 @@
 #include "tracing/perfetto/node_shared_memory.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/tracing/core/trace_packet.h"
+#include "perfetto/trace/chrome/chrome_trace_event.pbzero.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
+#include "perfetto/tracing/core/trace_writer.h"
+#include "perfetto/protozero/message_handle.h"
+#include "perfetto/tracing/core/basic_types.h"
+#include "perfetto/protozero/message.h"
 
 using v8::platform::tracing::TraceObject;
 using perfetto::base::TaskRunner;
+using perfetto::protos::pbzero::TracePacket;
 
 namespace node {
 namespace tracing {
@@ -12,18 +20,69 @@ namespace tracing {
 class TestNodeConsumer : public NodeConsumer {
   void OnConnect() override {
     perfetto::TraceConfig config;
+    config.add_buffers()->set_size_kb(4096);
+    {
+      auto c = config.add_data_sources();
+      auto c2 = c->mutable_config();
+      c2->set_name("trace_events");
+    }
+    // {
+    //   auto c = config.add_producers();
+    //   c->set_producer_name("node");
+    //   c->set_shm_size_kb(4096);
+    //   c->set_page_size_kb(4096);
+    // }
+    config.set_duration_ms(1000);
     svc_endpoint_->EnableTracing(config);
   }
 };
 
 class TraceControllerNodeProducer : public NodeProducer {
  public:
-  TraceControllerNodeProducer(TracingController* trace_controller): trace_controller_(trace_controller) {}
+  TraceControllerNodeProducer(TracingController* trace_controller): trace_controller_(trace_controller) {
+    name_ = "node";
+  }
  private:
+  class PerfettoTraceBuffer : public v8::platform::tracing::TraceBuffer {
+   public:
+    PerfettoTraceBuffer(std::unique_ptr<perfetto::TraceWriter> writer): writer_(std::move(writer)) {}
+    ~PerfettoTraceBuffer() {}
+    TraceObject* AddTraceEvent(uint64_t* handle) override {
+      auto obj = new PerfettoTraceObject(writer_->NewTracePacket());
+      return obj;
+    }
+    TraceObject* GetEventByHandle(uint64_t handle) override {
+      return nullptr;
+    }
+    bool Flush() override {
+      printf("Flushing\n");
+      writer_->Flush();
+      return true;
+    }
+   private:
+    class PerfettoTraceObject : public v8::platform::tracing::TraceObject {
+     public:
+      PerfettoTraceObject(perfetto::TraceWriter::TracePacketHandle&& handle)
+        : handle_(handle) {}
+      ~PerfettoTraceObject() {
+        printf("Writing an object\n");
+        auto trace_event = handle_->set_chrome_events()->add_trace_events();
+        trace_event->set_phase(phase() == 'X' ? 'B' : phase());
+        trace_event->set_category_group_name("TODO");
+        trace_event->set_name(name());
+        trace_event->set_timestamp(duration());
+        trace_event->set_thread_timestamp(cpu_duration());
+      }
+     private:
+      perfetto::TraceWriter::TracePacketHandle& handle_;
+    };
+    std::unique_ptr<perfetto::TraceWriter> writer_;
+  };
+
   void OnConnect() override {
     printf("Connected\n");
     perfetto::DataSourceDescriptor ds_desc;
-    ds_desc.set_name("node");
+    ds_desc.set_name("trace_events");
     svc_endpoint_->RegisterDataSource(ds_desc);
   }
 
@@ -35,15 +94,18 @@ class TraceControllerNodeProducer : public NodeProducer {
     printf("Tracing set up\n");
   }
 
-  void SetupDataSource(perfetto::DataSourceInstanceID,
-                       const perfetto::DataSourceConfig&) override {
-    printf("Data source set up\n");
+  void SetupDataSource(perfetto::DataSourceInstanceID id,
+                       const perfetto::DataSourceConfig& cfg) override {
+    printf("Data source set up %llu\n", id);
   }
 
-  void StartDataSource(perfetto::DataSourceInstanceID,
+  void StartDataSource(perfetto::DataSourceInstanceID id,
                        const perfetto::DataSourceConfig& cfg) override {
-    printf("Data source started\n");
+    printf("Data source started %llu\n", id);
+    auto writer = svc_endpoint_->CreateTraceWriter(cfg.target_buffer());
+    trace_controller_->Initialize(new PerfettoTraceBuffer(std::move(writer)));
   }
+
   TracingController* trace_controller_;
 };
 

@@ -70,6 +70,7 @@ class NodeConsumerHandle {
 class NodeProducer : public perfetto::Producer {
  protected:
   std::unique_ptr<perfetto::TracingService::ProducerEndpoint> svc_endpoint_;
+  std::string name_ = "";
   //
   void OnConnect() override {}
   void OnDisconnect() override {}
@@ -83,8 +84,7 @@ class NodeProducer : public perfetto::Producer {
              const perfetto::DataSourceInstanceID*, size_t) override {}
  private:
   void Connect(perfetto::TracingService* service) {
-    // TODO(kjin): Replace name.
-    svc_endpoint_ = service->ConnectProducer(this, 0, "node");
+    svc_endpoint_ = service->ConnectProducer(this, 0, name_);
   }
   bool IsConnected() {
     return !!svc_endpoint_;
