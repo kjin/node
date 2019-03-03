@@ -81,11 +81,11 @@ class NodeTraceStateObserver
 struct V8Platform {
 #if NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {
-#if NODE_USE_PERFETTO
-    tracing_agent_.reset(new tracing::PerfettoAgent());
-#else
-    tracing_agent_.reset(new tracing::LegacyAgent());
-#endif
+    if (true) {
+      tracing_agent_.reset(new tracing::PerfettoAgent());
+    } else {
+      tracing_agent_.reset(new tracing::LegacyAgent());
+    }
     node::tracing::TraceEventHelper::SetAgent(tracing_agent_.get());
     node::tracing::TracingController* controller =
         tracing_agent_->GetTracingController();

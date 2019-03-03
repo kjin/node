@@ -26,7 +26,7 @@ class PerfettoAgent : public Agent {
   ~PerfettoAgent() {}
 
   void Initialize() override;
-  
+
   TracingController* GetTracingController() override {
     return tracing_controller_.get();
   }
