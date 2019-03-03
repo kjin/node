@@ -20,6 +20,17 @@ using node::tracing::UseDefaultCategoryMode;
 namespace node {
 namespace tracing {
 
+/**
+ * In order to be accepted as a client of PerfettoAgent, a Perfetto Consumer
+ * additionally needs to expose methods to allow it to be enabled and disabled
+ * externally.
+ */
+class TracingAgentClientConsumer : public NodeConsumer {
+ public:
+  virtual void Enable(const std::set<std::string>& categories) = 0;
+  virtual void Disable(const std::set<std::string>& categories) = 0;
+};
+
 class PerfettoAgent : public Agent {
  public:
   PerfettoAgent();
@@ -31,14 +42,14 @@ class PerfettoAgent : public Agent {
     return tracing_controller_.get();
   }
 
-  // Destroying the handle disconnects the client
+  // For interface compatibility purposes; this method actually does nothing.
   std::unique_ptr<AgentWriterHandle> AddClient(const std::set<std::string>& categories,
-                              std::unique_ptr<AsyncTraceWriter> writer,
-                              enum UseDefaultCategoryMode mode) override;
-  // A handle that is only used for managing the default categories
-  // (which can then implicitly be used through using `USE_DEFAULT_CATEGORIES`
-  // when adding a client later).
+    std::unique_ptr<AsyncTraceWriter> writer,
+    enum UseDefaultCategoryMode mode) override;
   std::unique_ptr<AgentWriterHandle> DefaultHandle() override;
+  // Operational method for adding a client.
+  std::unique_ptr<AgentWriterHandle> AddClient(
+    std::unique_ptr<TracingAgentClientConsumer> consumer);
 
   // Returns a comma-separated list of enabled categories.
   std::string GetEnabledCategories() const override;
@@ -48,7 +59,6 @@ class PerfettoAgent : public Agent {
   std::unique_ptr<NodeTracing> node_tracing_;
   std::shared_ptr<TracingController> tracing_controller_;
   std::unique_ptr<NodeProducerHandle> producer_handle_;
-  std::unique_ptr<NodeConsumerHandle> consumer_handle_; // just a test
 };
 
 }

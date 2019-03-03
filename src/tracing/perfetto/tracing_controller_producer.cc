@@ -1,5 +1,6 @@
-#include "tracing/perfetto/tracing_controller.h"
+#include "tracing/perfetto/tracing_controller_producer.h"
 #include "stdio.h"
+#include "perfetto/trace/clock_snapshot.pbzero.h"
 
 namespace node {
 namespace tracing {
@@ -30,6 +31,7 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     trace_event->set_id(id);
     trace_event->set_bind_id(bind_id);
     trace_event->set_timestamp(timestamp);
+    trace_event->set_thread_timestamp(timestamp);
   }
   trace_writer_->Flush();
   printf("Trace event added: %s (bytes written: %llu)\n", name, trace_writer_->written());

@@ -1,6 +1,5 @@
 #include "tracing/perfetto_agent.h"
-#include "tracing/perfetto/node_shared_memory.h"
-#include "tracing/perfetto/tracing_controller.h"
+#include "tracing/perfetto/tracing_controller_producer.h"
 
 using v8::platform::tracing::TraceObject;
 using perfetto::base::TaskRunner;
@@ -8,24 +7,6 @@ using perfetto::protos::pbzero::TracePacket;
 
 namespace node {
 namespace tracing {
-
-class TestNodeConsumer : public NodeConsumer {
-  void OnConnect() override {
-    perfetto::TraceConfig config;
-    config.add_buffers()->set_size_kb(4096);
-    {
-      auto c = config.add_data_sources();
-      auto c2 = c->mutable_config();
-      c2->set_name("trace_events");
-    }
-    config.set_duration_ms(1000);
-    svc_endpoint_->EnableTracing(config);
-  }
-  void OnTraceData(std::vector<perfetto::TracePacket> packets,
-                   bool has_more) override {
-    printf("Got trace data.\n");
-  }
-};
 
 class NoopAgentWriterHandle : public AgentWriterHandle {
  public:
@@ -48,6 +29,40 @@ class NoopAgentWriterHandle : public AgentWriterHandle {
   bool is_default_;
 };
 
+class TracingAgentClientConsumerHandle : public AgentWriterHandle {
+ public:
+  ~TracingAgentClientConsumerHandle() {}
+  bool empty() const override { return agent_ != nullptr; }
+  void reset() override { agent_ = nullptr; }
+
+  void Enable(const std::set<std::string>& categories) override {
+    consumer_->Enable(categories);
+  }
+
+  void Disable(const std::set<std::string>& categories) override {
+    consumer_->Disable(categories);
+  }
+
+  bool IsDefaultHandle() override { return false; }
+
+  Agent* agent() override { return agent_; }
+
+  v8::TracingController* GetTracingController() override { return agent_->GetTracingController(); }
+ private:
+  TracingAgentClientConsumerHandle(
+    Agent* agent, TracingAgentClientConsumer* consumer, 
+    std::unique_ptr<NodeConsumerHandle> consumer_handle)
+    : agent_(agent), consumer_(consumer),
+      consumer_handle_(std::move(consumer_handle)) {}
+  // Reference to the Perfetto Agent.
+  Agent* agent_;
+  // Sub-class reference to the NodeConsumer that is owned by consumer_handle_.
+  TracingAgentClientConsumer* consumer_;
+  // Handle that owns the NodeConsumer.
+  std::unique_ptr<NodeConsumerHandle> consumer_handle_;
+  friend class PerfettoAgent;
+};
+
 // PerfettoAgent implementation
 
 PerfettoAgent::PerfettoAgent()
@@ -55,7 +70,6 @@ PerfettoAgent::PerfettoAgent()
   TracingControllerNodeProducer* producer = new TracingControllerNodeProducer();
   tracing_controller_ = producer->GetTracingController();
   producer_handle_ = node_tracing_->ConnectProducer(std::unique_ptr<NodeProducer>(producer));
-  consumer_handle_ = node_tracing_->ConnectConsumer(std::unique_ptr<NodeConsumer>(new TestNodeConsumer()));
 }
 
 void PerfettoAgent::Initialize() {
@@ -66,12 +80,19 @@ std::unique_ptr<AgentWriterHandle> PerfettoAgent::AddClient(
   const std::set<std::string>& categories,
   std::unique_ptr<AsyncTraceWriter> writer,
   enum UseDefaultCategoryMode mode) {
+    // This method is essentially a no-op.
     return std::unique_ptr<AgentWriterHandle>(new NoopAgentWriterHandle(this, std::move(writer), false));
 }
 
 std::unique_ptr<AgentWriterHandle> PerfettoAgent::DefaultHandle() {
-  // Assume that this value can only be retrieved once.
+  // This method is essentially a no-op.
   return std::unique_ptr<AgentWriterHandle>(new NoopAgentWriterHandle(this, std::unique_ptr<AsyncTraceWriter>(nullptr), true));
+}
+
+std::unique_ptr<AgentWriterHandle> PerfettoAgent::AddClient(
+  std::unique_ptr<TracingAgentClientConsumer> consumer) {
+    return std::unique_ptr<AgentWriterHandle>(
+      new TracingAgentClientConsumerHandle(this, consumer.get(), node_tracing_->ConnectConsumer(std::move(consumer))));
 }
 
 std::string PerfettoAgent::GetEnabledCategories() const { return ""; } // TODO
