@@ -12,11 +12,12 @@
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/protozero/message.h"
+#include <set>
 
 namespace node {
 namespace tracing {
 
-class TracingControllerNodeProducer;
+class TracingControllerProducer;
 
 class PerfettoTracingController : public TracingController {
  public:
@@ -70,23 +71,24 @@ class PerfettoTracingController : public TracingController {
       unsigned int flags, int64_t timestamp) override;
   void UpdateTraceEventDuration(const uint8_t* category_enabled_flag,
                                         const char* name, uint64_t handle) override {}
-  void AddTraceStateObserver(TraceStateObserver*) override {}
-  void RemoveTraceStateObserver(TraceStateObserver*) override {}
+  void AddTraceStateObserver(TraceStateObserver*) override;
+  void RemoveTraceStateObserver(TraceStateObserver*) override;
  private:
   std::unordered_map<const char*, uint8_t> category_groups_;
   std::unique_ptr<perfetto::TraceWriter> trace_writer_;
-  friend class TracingControllerNodeProducer;
+  std::set<TraceStateObserver*> observers_;
+  bool enabled_ = false;
+  friend class TracingControllerProducer;
 };
 
-class TracingControllerNodeProducer : public NodeProducer {
+class TracingControllerProducer : public NodeProducer {
  public:
-  TracingControllerNodeProducer();
+  TracingControllerProducer();
   std::shared_ptr<TracingController> GetTracingController() {
     return trace_controller_;
   }
  private:
   void OnConnect() override;
-
   void OnDisconnect() override;
 
   void OnTracingSetup() override;

@@ -6,15 +6,15 @@
 namespace node {
 namespace tracing {
 
-struct WriteToFileOptions {
+struct FileWriterConsumerOptions {
   const char* filename;
   uint32_t buffer_size_kb;
   uint32_t file_write_period_ms;
 };
 
-class FileWriterNodeConsumer : public TracingAgentClientConsumer {
+class FileWriterConsumer : public TracingAgentClientConsumer {
  public:
-  FileWriterNodeConsumer(const WriteToFileOptions& options): options_(options) {}
+  FileWriterConsumer(FileWriterConsumerOptions& options): options_(options) {}
   void Enable(const std::set<std::string>& categories) override;
   void Disable(const std::set<std::string>& categories) override;
  private:
@@ -24,7 +24,7 @@ class FileWriterNodeConsumer : public TracingAgentClientConsumer {
   void OnDisconnect() override {
     connected_ = false;
   }
-  const WriteToFileOptions& options_;
+  const FileWriterConsumerOptions options_;
   bool connected_ = false;
 };
 

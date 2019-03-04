@@ -32,14 +32,24 @@ class NoopAgentWriterHandle : public AgentWriterHandle {
 class TracingAgentClientConsumerHandle : public AgentWriterHandle {
  public:
   ~TracingAgentClientConsumerHandle() {}
-  bool empty() const override { return agent_ != nullptr; }
-  void reset() override { agent_ = nullptr; }
+  bool empty() const override { return consumer_handle_.get() == nullptr; }
+  void reset() override {
+    consumer_handle_.reset(nullptr);
+    agent_ = nullptr;
+    consumer_ = nullptr;
+  }
 
   void Enable(const std::set<std::string>& categories) override {
+    if (consumer_ == nullptr) {
+      return;
+    }
     consumer_->Enable(categories);
   }
 
   void Disable(const std::set<std::string>& categories) override {
+    if (consumer_ == nullptr) {
+      return;
+    }
     consumer_->Disable(categories);
   }
 
@@ -67,7 +77,7 @@ class TracingAgentClientConsumerHandle : public AgentWriterHandle {
 
 PerfettoAgent::PerfettoAgent()
   : node_tracing_(new NodeTracing()) {
-  TracingControllerNodeProducer* producer = new TracingControllerNodeProducer();
+  TracingControllerProducer* producer = new TracingControllerProducer();
   tracing_controller_ = producer->GetTracingController();
   producer_handle_ = node_tracing_->ConnectProducer(std::unique_ptr<NodeProducer>(producer));
 }
@@ -91,8 +101,10 @@ std::unique_ptr<AgentWriterHandle> PerfettoAgent::DefaultHandle() {
 
 std::unique_ptr<AgentWriterHandle> PerfettoAgent::AddClient(
   std::unique_ptr<TracingAgentClientConsumer> consumer) {
-    return std::unique_ptr<AgentWriterHandle>(
+    std::unique_ptr<AgentWriterHandle> result = std::unique_ptr<AgentWriterHandle>(
       new TracingAgentClientConsumerHandle(this, consumer.get(), node_tracing_->ConnectConsumer(std::move(consumer))));
+    result->Enable(std::set<std::string>());
+    return result;
 }
 
 std::string PerfettoAgent::GetEnabledCategories() const { return ""; } // TODO

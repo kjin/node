@@ -1,6 +1,8 @@
 #include "tracing/perfetto/tracing_controller_producer.h"
-#include "stdio.h"
 #include "perfetto/trace/clock_snapshot.pbzero.h"
+#include "uv.h"
+#include <algorithm>
+#include <thread>
 
 namespace node {
 namespace tracing {
@@ -18,12 +20,15 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     return kNoHandle;
   }
   static uint64_t handle = kNoHandle + 1;
+  static std::hash<std::thread::id> hasher;
   {
     auto trace_packet = trace_writer_->NewTracePacket();
     auto trace_event_bundle = trace_packet->set_chrome_events();
     auto trace_event = trace_event_bundle->add_trace_events();
-    // This is taken from the V8 prototype.
-    trace_event->set_phase(phase == 'X' ? 'B' : phase);
+    trace_event->set_process_id(uv_os_getpid());
+    // Imperfect way to get a thread ID in lieu of V8's built-in mechanism.
+    trace_event->set_thread_id(hasher(std::this_thread::get_id()) % 65536);
+    trace_event->set_phase(phase);
     trace_event->set_name(name);
     if (scope != nullptr) {
       trace_event->set_scope(scope);
@@ -38,35 +43,58 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
   return handle++;
 }
 
-TracingControllerNodeProducer::TracingControllerNodeProducer()
+void PerfettoTracingController::AddTraceStateObserver(TraceStateObserver* observer) {
+  if (observers_.find(observer) != observers_.end()) {
+    return;
+  }
+  observers_.insert(observer);
+  if (enabled_) {
+    observer->OnTraceEnabled();
+  }
+}
+
+void PerfettoTracingController::RemoveTraceStateObserver(TraceStateObserver* observer) {
+  observers_.erase(observer);
+}
+
+TracingControllerProducer::TracingControllerProducer()
   : trace_controller_(new PerfettoTracingController()) {
   name_ = "node";
 }
 
-void TracingControllerNodeProducer::OnConnect() {
+void TracingControllerProducer::OnConnect() {
+  NodeProducer::OnConnect();
   printf("Connected\n");
   perfetto::DataSourceDescriptor ds_desc;
   ds_desc.set_name("trace_events");
   svc_endpoint_->RegisterDataSource(ds_desc);
 }
 
-void TracingControllerNodeProducer::OnDisconnect() {
+void TracingControllerProducer::OnDisconnect() {
+  NodeProducer::OnDisconnect();
   Cleanup();
 }
 
-void TracingControllerNodeProducer::OnTracingSetup() {
+void TracingControllerProducer::OnTracingSetup() {
   printf("Tracing set up\n");
 }
 
-void TracingControllerNodeProducer::SetupDataSource(perfetto::DataSourceInstanceID id,
+void TracingControllerProducer::SetupDataSource(perfetto::DataSourceInstanceID id,
                       const perfetto::DataSourceConfig& cfg) {
   data_source_id_ = id;
 }
 
-void TracingControllerNodeProducer::StartDataSource(perfetto::DataSourceInstanceID id,
+void TracingControllerProducer::StartDataSource(perfetto::DataSourceInstanceID id,
                       const perfetto::DataSourceConfig& cfg) {
   if (data_source_id_ != id) {
     return;
+  }
+  trace_controller_->enabled_ = true;
+  {
+    auto observers = trace_controller_->observers_;
+    for (auto itr = observers.begin(); itr != observers.end(); itr++) {
+      (*itr)->OnTraceEnabled();
+    }
   }
   trace_controller_->trace_writer_ = svc_endpoint_->CreateTraceWriter(cfg.target_buffer());
   // TODO(kjin): Don't hardcode these
@@ -75,14 +103,21 @@ void TracingControllerNodeProducer::StartDataSource(perfetto::DataSourceInstance
   trace_controller_->category_groups_["v8"] = 255;
 }
 
-void TracingControllerNodeProducer::StopDataSource(perfetto::DataSourceInstanceID id) {
+void TracingControllerProducer::StopDataSource(perfetto::DataSourceInstanceID id) {
   if (data_source_id_ != id) {
     return;
   }
   Cleanup();
 }
 
-void TracingControllerNodeProducer::Cleanup() {
+void TracingControllerProducer::Cleanup() {
+  trace_controller_->enabled_ = false;
+  {
+    auto observers = trace_controller_->observers_;
+    for (auto itr = observers.begin(); itr != observers.end(); itr++) {
+      (*itr)->OnTraceDisabled();
+    }
+  }
   trace_controller_->trace_writer_.reset(nullptr);
   trace_controller_->category_groups_.clear();
 }

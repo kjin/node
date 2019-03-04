@@ -18,6 +18,7 @@ class NodeTracing;
 class NodeConsumer : public perfetto::Consumer {
  protected:
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint> svc_endpoint_;
+  std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
   //
   void OnConnect() override {}
   void OnDisconnect() override {}
@@ -28,8 +29,12 @@ class NodeConsumer : public perfetto::Consumer {
   void OnAttach(bool success, const perfetto::TraceConfig&) override {}
   void OnTraceStats(bool success, const perfetto::TraceStats&) override {}
  private:
+  // Private members for use by friends only.
   void Connect(perfetto::TracingService* service) {
     svc_endpoint_ = service->ConnectConsumer(this, 0);
+  }
+  void SetTaskRunner(std::weak_ptr<perfetto::base::TaskRunner> task_runner) {
+    task_runner_ = task_runner;
   }
   bool IsConnected() {
     return !!svc_endpoint_;
@@ -55,14 +60,16 @@ class NodeConsumerHandle {
       }
       // Don't destroy the Consumer right away.
       std::shared_ptr<NodeConsumer> consumer = consumer_;
-      std::shared_ptr<NodeTaskRunner>(task_runner_)->PostTask([consumer]() {});
+      std::shared_ptr<perfetto::base::TaskRunner>(task_runner_)->PostTask([consumer]() {});
     }
   }
  private:
   NodeConsumerHandle(
     std::unique_ptr<NodeConsumer> consumer,
-    std::shared_ptr<NodeTaskRunner> task_runner): task_runner_(task_runner), consumer_(consumer.release()) {}
-  std::weak_ptr<NodeTaskRunner> task_runner_;
+    std::shared_ptr<perfetto::base::TaskRunner> task_runner): task_runner_(task_runner), consumer_(consumer.release()) {
+      consumer_->SetTaskRunner(task_runner_);
+    }
+  std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
   std::shared_ptr<NodeConsumer> consumer_;
   friend class NodeTracing;
 };
@@ -70,6 +77,7 @@ class NodeConsumerHandle {
 class NodeProducer : public perfetto::Producer {
  protected:
   std::unique_ptr<perfetto::TracingService::ProducerEndpoint> svc_endpoint_;
+  std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
   std::string name_ = "";
   //
   void OnConnect() override {}
@@ -83,8 +91,12 @@ class NodeProducer : public perfetto::Producer {
   void Flush(::perfetto::FlushRequestID,
              const perfetto::DataSourceInstanceID*, size_t) override {}
  private:
+  // Private members for use by friends only.
   void Connect(perfetto::TracingService* service) {
     svc_endpoint_ = service->ConnectProducer(this, 0, name_);
+  }
+  void SetTaskRunner(std::weak_ptr<perfetto::base::TaskRunner> task_runner) {
+    task_runner_ = task_runner;
   }
   bool IsConnected() {
     return !!svc_endpoint_;
@@ -110,14 +122,16 @@ class NodeProducerHandle {
       }
       // Don't destroy the Producer right away.
       std::shared_ptr<NodeProducer> producer = producer_;
-      std::shared_ptr<NodeTaskRunner>(task_runner_)->PostTask([producer]() {});
+      std::shared_ptr<perfetto::base::TaskRunner>(task_runner_)->PostTask([producer]() {});
     }
   }
  private:
   NodeProducerHandle(
     std::unique_ptr<NodeProducer> producer,
-    std::shared_ptr<NodeTaskRunner> task_runner): task_runner_(task_runner), producer_(producer.release()) {}
-  std::weak_ptr<NodeTaskRunner> task_runner_;
+    std::shared_ptr<perfetto::base::TaskRunner> task_runner): task_runner_(task_runner), producer_(producer.release()) {
+      producer_->SetTaskRunner(task_runner_);
+    }
+  std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
   std::shared_ptr<NodeProducer> producer_;
   friend class NodeTracing;
 };
