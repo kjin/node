@@ -137,8 +137,9 @@ struct V8Platform {
       auto agent = reinterpret_cast<tracing::PerfettoAgent*>(
         tracing_agent_.get());
       tracing::FileWriterConsumerOptions options;
-      options.filename = per_process::cli_options->trace_event_file_pattern.c_str();
+      options.log_file_pattern = per_process::cli_options->trace_event_file_pattern.c_str();
       options.buffer_size_kb = 4096;
+      options.file_size_kb = 16384;
       options.file_write_period_ms = 2000; // Every 2s
       tracing_file_writer_ = agent->AddClient(
         std::unique_ptr<tracing::TracingAgentClientConsumer>(

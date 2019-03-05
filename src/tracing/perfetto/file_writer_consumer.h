@@ -7,11 +7,16 @@ namespace node {
 namespace tracing {
 
 struct FileWriterConsumerOptions {
-  const char* filename;
+  const char* log_file_pattern;
   uint32_t buffer_size_kb;
   uint32_t file_write_period_ms;
+  uint32_t file_size_kb;
 };
 
+/**
+ * A Perfetto Consumer that doesn't consume traces directly, instead directing
+ * producers to write to a file.
+ */
 class FileWriterConsumer : public TracingAgentClientConsumer {
  public:
   FileWriterConsumer(FileWriterConsumerOptions& options): options_(options) {}
@@ -24,7 +29,14 @@ class FileWriterConsumer : public TracingAgentClientConsumer {
   void OnDisconnect() override {
     connected_ = false;
   }
+  void OnTracingDisabled() override {
+    RotateFilenameAndEnable();
+  }
+
+  void RotateFilenameAndEnable();
+  
   const FileWriterConsumerOptions options_;
+  uint32_t file_num_ = 0;
   bool connected_ = false;
 };
 
