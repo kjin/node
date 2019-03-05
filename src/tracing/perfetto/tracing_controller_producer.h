@@ -13,6 +13,7 @@
 #include "perfetto/tracing/core/basic_types.h"
 #include "perfetto/protozero/message.h"
 #include <set>
+#include <mutex>
 
 namespace node {
 namespace tracing {
@@ -69,6 +70,8 @@ class PerfettoTracingController : public TracingController {
   void AddTraceStateObserver(TraceStateObserver*) override;
   void RemoveTraceStateObserver(TraceStateObserver*) override;
  private:
+  PerfettoTracingController(TracingControllerProducer* producer): producer_(producer) {}
+
   // V8 probably does a much better job at handling categories.
   // Just do something that will probably work OK for the demo.
   class CategoryManager {
@@ -116,7 +119,7 @@ class PerfettoTracingController : public TracingController {
     std::list<const char*> categories_;
   } category_manager_;
 
-  std::unique_ptr<perfetto::TraceWriter> trace_writer_;
+  TracingControllerProducer* producer_;
   std::set<TraceStateObserver*> observers_;
   bool enabled_ = false;
   friend class TracingControllerProducer;
@@ -128,16 +131,26 @@ class TracingControllerProducer : public NodeProducer {
   std::shared_ptr<TracingController> GetTracingController() {
     return trace_controller_;
   }
-  void Disconnect() override {
-    Cleanup();
-    NodeProducer::Disconnect();
+  perfetto::TraceWriter* GetTLSTraceWriter() {
+    static std::mutex writer_lock_;
+    std::lock_guard<std::mutex> scoped_lock(writer_lock_);
+    if (!svc_endpoint_ || target_buffer_ == 0) {
+      return nullptr;
+    } else {
+      static uint8_t thread_id_ctr = 0;
+      thread_local uint8_t thread_id = thread_id_ctr++;
+      auto result = writers_[thread_id].get();
+      if (result == nullptr) {
+        result = (writers_[thread_id] = svc_endpoint_->CreateTraceWriter(target_buffer_)).get();
+      }
+      return result;
+    }
   }
  private:
+  void BeforeDisconnect() override {
+    Cleanup();
+  }
   void OnConnect() override;
-  void OnDisconnect() override;
-
-  void OnTracingSetup() override;
-
   void SetupDataSource(perfetto::DataSourceInstanceID id,
                        const perfetto::DataSourceConfig& cfg) override;
 
@@ -147,6 +160,8 @@ class TracingControllerProducer : public NodeProducer {
 
   void Cleanup();
 
+  uint32_t target_buffer_ = 0;
+  std::unordered_map<uint8_t, std::unique_ptr<perfetto::TraceWriter>> writers_;
   std::shared_ptr<PerfettoTracingController> trace_controller_;
   perfetto::DataSourceInstanceID data_source_id_;
 };

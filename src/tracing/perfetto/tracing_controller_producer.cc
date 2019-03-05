@@ -16,13 +16,14 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     const uint64_t* arg_values,
     std::unique_ptr<v8::ConvertableToTraceFormat>* arg_convertables,
     unsigned int flags, int64_t timestamp) {
-  if (!trace_writer_) {
+  auto trace_writer = producer_->GetTLSTraceWriter();
+  if (!trace_writer) {
     return kNoHandle;
   }
   static uint64_t handle = kNoHandle + 1;
   static std::hash<std::thread::id> hasher;
   {
-    auto trace_packet = trace_writer_->NewTracePacket();
+    auto trace_packet = trace_writer->NewTracePacket();
     auto trace_event_bundle = trace_packet->set_chrome_events();
     auto trace_event = trace_event_bundle->add_trace_events();
     trace_event->set_process_id(uv_os_getpid());
@@ -37,9 +38,8 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     trace_event->set_bind_id(bind_id);
     trace_event->set_timestamp(timestamp);
     trace_event->set_thread_timestamp(timestamp);
-    // trace_event->set_category_group_name(
   }
-  trace_writer_->Flush();
+  trace_writer->Flush();
   return handle++;
 }
 
@@ -58,25 +58,14 @@ void PerfettoTracingController::RemoveTraceStateObserver(TraceStateObserver* obs
 }
 
 TracingControllerProducer::TracingControllerProducer()
-  : trace_controller_(new PerfettoTracingController()) {
+  : trace_controller_(new PerfettoTracingController(this)) {
   name_ = "node";
 }
 
 void TracingControllerProducer::OnConnect() {
-  NodeProducer::OnConnect();
-  printf("Connected\n");
   perfetto::DataSourceDescriptor ds_desc;
   ds_desc.set_name("trace_events");
   svc_endpoint_->RegisterDataSource(ds_desc);
-}
-
-void TracingControllerProducer::OnDisconnect() {
-  NodeProducer::OnDisconnect();
-  Cleanup();
-}
-
-void TracingControllerProducer::OnTracingSetup() {
-  printf("Tracing set up\n");
 }
 
 void TracingControllerProducer::SetupDataSource(perfetto::DataSourceInstanceID id,
@@ -96,7 +85,7 @@ void TracingControllerProducer::StartDataSource(perfetto::DataSourceInstanceID i
       (*itr)->OnTraceEnabled();
     }
   }
-  trace_controller_->trace_writer_ = svc_endpoint_->CreateTraceWriter(cfg.target_buffer());
+  target_buffer_ = cfg.target_buffer();
   // TODO(kjin): Don't hardcode these
   std::list<const char*> groups = { "node", "node.async_hooks", "v8" };
   trace_controller_->category_manager_.UpdateCategoryGroups(groups);
@@ -119,8 +108,7 @@ void TracingControllerProducer::Cleanup() {
       (*itr)->OnTraceDisabled();
     }
   }
-  trace_controller_->trace_writer_.reset(nullptr);
-  // trace_controller_->category_groups_.clear();
+  writers_.clear();
 }
 
 }

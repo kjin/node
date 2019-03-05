@@ -19,6 +19,8 @@ class NodeConsumer : public perfetto::Consumer {
  protected:
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint> svc_endpoint_;
   std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
+  virtual void BeforeConnect() {}
+  virtual void BeforeDisconnect() {}
   //
   void OnConnect() override {}
   void OnDisconnect() override {}
@@ -31,16 +33,18 @@ class NodeConsumer : public perfetto::Consumer {
  private:
   // Private members for use by friends only.
   void Connect(perfetto::TracingService* service) {
+    BeforeConnect();
     svc_endpoint_ = service->ConnectConsumer(this, 0);
+  }
+  void Disconnect() {
+    BeforeDisconnect();
+    svc_endpoint_.reset(nullptr);
   }
   void SetTaskRunner(std::weak_ptr<perfetto::base::TaskRunner> task_runner) {
     task_runner_ = task_runner;
   }
   bool IsConnected() {
     return !!svc_endpoint_;
-  }
-  void Disconnect() {
-    svc_endpoint_.reset(nullptr);
   }
   friend class NodeTracing;
   friend class NodeConsumerHandle;
@@ -79,6 +83,8 @@ class NodeProducer : public perfetto::Producer {
   std::unique_ptr<perfetto::TracingService::ProducerEndpoint> svc_endpoint_;
   std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
   std::string name_ = "";
+  virtual void BeforeConnect() {}
+  virtual void BeforeDisconnect() {}
   //
   void OnConnect() override {}
   void OnDisconnect() override {}
@@ -90,13 +96,15 @@ class NodeProducer : public perfetto::Producer {
   void StopDataSource(perfetto::DataSourceInstanceID) override {}
   void Flush(::perfetto::FlushRequestID,
              const perfetto::DataSourceInstanceID*, size_t) override {}
-  virtual void Disconnect() {
-    svc_endpoint_.reset(nullptr);
-  }
  private:
   // Private members for use by friends only.
   void Connect(perfetto::TracingService* service) {
+    BeforeConnect();
     svc_endpoint_ = service->ConnectProducer(this, 0, name_);
+  }
+  void Disconnect() {
+    BeforeDisconnect();
+    svc_endpoint_.reset(nullptr);
   }
   void SetTaskRunner(std::weak_ptr<perfetto::base::TaskRunner> task_runner) {
     task_runner_ = task_runner;
