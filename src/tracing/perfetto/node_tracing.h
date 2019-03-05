@@ -90,6 +90,9 @@ class NodeProducer : public perfetto::Producer {
   void StopDataSource(perfetto::DataSourceInstanceID) override {}
   void Flush(::perfetto::FlushRequestID,
              const perfetto::DataSourceInstanceID*, size_t) override {}
+  virtual void Disconnect() {
+    svc_endpoint_.reset(nullptr);
+  }
  private:
   // Private members for use by friends only.
   void Connect(perfetto::TracingService* service) {
@@ -100,9 +103,6 @@ class NodeProducer : public perfetto::Producer {
   }
   bool IsConnected() {
     return !!svc_endpoint_;
-  }
-  void Disconnect() {
-    svc_endpoint_.reset(nullptr);
   }
   friend class NodeTracing;
   friend class NodeProducerHandle;

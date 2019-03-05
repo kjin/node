@@ -37,9 +37,9 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     trace_event->set_bind_id(bind_id);
     trace_event->set_timestamp(timestamp);
     trace_event->set_thread_timestamp(timestamp);
+    // trace_event->set_category_group_name(
   }
   trace_writer_->Flush();
-  printf("Trace event added: %s (bytes written: %llu)\n", name, trace_writer_->written());
   return handle++;
 }
 
@@ -98,9 +98,8 @@ void TracingControllerProducer::StartDataSource(perfetto::DataSourceInstanceID i
   }
   trace_controller_->trace_writer_ = svc_endpoint_->CreateTraceWriter(cfg.target_buffer());
   // TODO(kjin): Don't hardcode these
-  trace_controller_->category_groups_["node"] = 255;
-  trace_controller_->category_groups_["node.async_hooks"] = 255;
-  trace_controller_->category_groups_["v8"] = 255;
+  std::list<const char*> groups = { "node", "node.async_hooks", "v8" };
+  trace_controller_->category_manager_.UpdateCategoryGroups(groups);
 }
 
 void TracingControllerProducer::StopDataSource(perfetto::DataSourceInstanceID id) {
@@ -113,13 +112,15 @@ void TracingControllerProducer::StopDataSource(perfetto::DataSourceInstanceID id
 void TracingControllerProducer::Cleanup() {
   trace_controller_->enabled_ = false;
   {
+    std::list<const char*> groups = {};
+    trace_controller_->category_manager_.UpdateCategoryGroups(groups);
     auto observers = trace_controller_->observers_;
     for (auto itr = observers.begin(); itr != observers.end(); itr++) {
       (*itr)->OnTraceDisabled();
     }
   }
   trace_controller_->trace_writer_.reset(nullptr);
-  trace_controller_->category_groups_.clear();
+  // trace_controller_->category_groups_.clear();
 }
 
 }
