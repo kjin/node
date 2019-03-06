@@ -1,8 +1,9 @@
 #ifndef SRC_TRACING_PERFETTO_NODE_TRACING_CONTROLLER_PRODUCER_H_
 #define SRC_TRACING_PERFETTO_NODE_TRACING_CONTROLLER_PRODUCER_H_
 
-#include "tracing/agent.h"
+#include "libplatform/v8-tracing.h"
 #include "tracing/perfetto/node_tracing.h"
+#include "tracing/agent.h"
 #include "uv.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -15,12 +16,15 @@
 #include <set>
 #include <mutex>
 
+using V8TracingController = v8::platform::tracing::TracingController;
+using NodeTracingController = node::tracing::TracingController;
+
 namespace node {
 namespace tracing {
 
 class TracingControllerProducer;
 
-class PerfettoTracingController : public TracingController {
+class PerfettoTracingController : public NodeTracingController {
  public:
   // node::tracing::TracingController -- should all be no-ops except metadata
   void Initialize(TraceBuffer* trace_buffer) override {
@@ -76,47 +80,27 @@ class PerfettoTracingController : public TracingController {
   // Just do something that will probably work OK for the demo.
   class CategoryManager {
    public:
-    CategoryManager(): categories_(default_categories_) {}
-
-    const uint8_t* GetCategoryGroupEnabled(const char* group) {
-      if (category_groups_.find(group) == category_groups_.end()) {
-        uint8_t flags = 0x0;
-        std::string clamped_group = std::string() + ',' + group + ',';
-        for (auto itr = categories_.begin(); itr != categories_.end(); itr++) {
-          size_t idx = clamped_group.find(std::string() + ',' + *itr + ',');
-          if (idx != std::string::npos) {
-            flags = 0x1;
-            break;
-          }
-        }
-        category_groups_[group] = flags;
-      }
-      return &category_groups_[group];
+    CategoryManager() {
+      controller_.Initialize(nullptr);
     }
 
-    void UpdateCategoryGroups(std::list<const char*>& categories) {
-      categories_ = std::list<const char*>(default_categories_);
-      categories_.insert(categories_.end(), categories.begin(), categories.end());
-      std::unordered_map<const char*, uint8_t> new_category_groups;
-      for (auto g_itr = category_groups_.begin(); g_itr != category_groups_.end(); g_itr++) {
-        uint8_t flags = 0x0;
-        std::string clamped_group = std::string() + ',' + g_itr->first + ',';
-        for (auto itr = categories_.begin(); itr != categories_.end(); itr++) {
-          size_t idx = clamped_group.find(std::string() + ',' + *itr + ',');
-          if (idx != std::string::npos) {
-            flags = 0x1;
-            break;
-          }
-        }
-        new_category_groups[g_itr->first] = flags;
-      }
-      category_groups_ = new_category_groups;
+    const uint8_t* GetCategoryGroupEnabled(const char* category_group) {
+      return controller_.GetCategoryGroupEnabled(category_group);
+    }
+
+    const char* GetCategoryGroupName(const uint8_t* category_group_flags) {
+      return controller_.GetCategoryGroupName(category_group_flags);
+    }
+
+    void UpdateCategoryGroups(std::list<const char*> categories) {
+      auto config = v8::platform::tracing::TraceConfig::CreateDefaultTraceConfig();
+      for (auto itr = categories.begin(); itr != categories.end(); itr++) {
+        config->AddIncludedCategory(*itr);
+      };
+      controller_.StartTracing(config);
     }
    private:
-    // Maps category group to their decomposed categories
-    std::unordered_map<const char*, uint8_t> category_groups_;
-    const std::list<const char*> default_categories_ = { "__metadata" };
-    std::list<const char*> categories_;
+    V8TracingController controller_;
   } category_manager_;
 
   TracingControllerProducer* producer_;
@@ -128,23 +112,27 @@ class PerfettoTracingController : public TracingController {
 class TracingControllerProducer : public NodeProducer {
  public:
   TracingControllerProducer();
-  std::shared_ptr<TracingController> GetTracingController() {
+  std::shared_ptr<NodeTracingController> GetTracingController() {
     return trace_controller_;
   }
-  perfetto::TraceWriter* GetTLSTraceWriter() {
+  std::weak_ptr<perfetto::TraceWriter> GetTLSTraceWriter() {
     static std::mutex writer_lock_;
     std::lock_guard<std::mutex> scoped_lock(writer_lock_);
     if (!svc_endpoint_ || target_buffer_ == 0) {
-      return nullptr;
+      return std::weak_ptr<perfetto::TraceWriter>();
     } else {
       static uint8_t thread_id_ctr = 0;
       thread_local uint8_t thread_id = thread_id_ctr++;
-      auto result = writers_[thread_id].get();
-      if (result == nullptr) {
-        result = (writers_[thread_id] = svc_endpoint_->CreateTraceWriter(target_buffer_)).get();
+      std::weak_ptr<perfetto::TraceWriter> result(writers_[thread_id]);
+      if (result.expired()) {
+        printf("Creating new trace writer %d\n", thread_id);
+        result = std::weak_ptr<perfetto::TraceWriter>(writers_[thread_id] = svc_endpoint_->CreateTraceWriter(target_buffer_));
       }
       return result;
     }
+  }
+  std::weak_ptr<perfetto::base::TaskRunner> GetTaskRunner() {
+    return task_runner_;
   }
  private:
   void BeforeDisconnect() override {
@@ -161,7 +149,7 @@ class TracingControllerProducer : public NodeProducer {
   void Cleanup();
 
   uint32_t target_buffer_ = 0;
-  std::unordered_map<uint8_t, std::unique_ptr<perfetto::TraceWriter>> writers_;
+  std::unordered_map<uint8_t, std::shared_ptr<perfetto::TraceWriter>> writers_;
   std::shared_ptr<PerfettoTracingController> trace_controller_;
   perfetto::DataSourceInstanceID data_source_id_;
 };

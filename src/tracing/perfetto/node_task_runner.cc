@@ -26,19 +26,29 @@ class TracingTask : public v8::Task {
 };
 
 void NodeTaskRunner::PostTask(std::function<void()> task) {
+  if (!isolate_) {
+    return;
+  }
   NodePlatform* platform = per_process::v8_platform.Platform();
   if (platform == nullptr) {
     return; // No platform -- process is going down soon anyway.
   }
-  platform->CallOnForegroundThread(v8::Isolate::GetCurrent(), new TracingTask(std::move(task)));
+  platform->CallOnForegroundThread(isolate_, new TracingTask(std::move(task)));
 }
 
 void NodeTaskRunner::PostDelayedTask(std::function<void()> task, uint32_t delay_ms) {
+  if (!isolate_) {
+    return;
+  }
   NodePlatform* platform = per_process::v8_platform.Platform();
   if (platform == nullptr) {
     return; // No platform -- process is going down soon anyway.
   }
-  platform->CallDelayedOnForegroundThread(v8::Isolate::GetCurrent(), new TracingTask(std::move(task)), delay_ms / 1000.0);
+  platform->CallDelayedOnForegroundThread(isolate_, new TracingTask(std::move(task)), delay_ms / 1000.0);
+}
+
+void NodeTaskRunner::Start() {
+  isolate_ = v8::Isolate::GetCurrent();
 }
 
 void DelayedNodeTaskRunner::PostTask(std::function<void()> task) {
@@ -58,6 +68,7 @@ void DelayedNodeTaskRunner::PostDelayedTask(std::function<void()> task, uint32_t
 }
 
 void DelayedNodeTaskRunner::Start() {
+  NodeTaskRunner::Start();
   started_ = true;
   for (auto itr = delayed_args_.begin(); itr != delayed_args_.end(); itr++) {
     if (itr->second == 0) {

@@ -8,6 +8,7 @@ namespace tracing {
 
 struct FileWriterConsumerOptions {
   const char* log_file_pattern;
+  // Note that this needs to be a multiple of the page size, 4kb.
   uint32_t buffer_size_kb;
   uint32_t file_write_period_ms;
   uint32_t file_size_kb;
@@ -30,6 +31,7 @@ class FileWriterConsumer : public TracingAgentClientConsumer {
     connected_ = false;
   }
   void OnTracingDisabled() override {
+    svc_endpoint_->FreeBuffers();
     RotateFilenameAndEnable();
   }
 

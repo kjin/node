@@ -17,19 +17,20 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     std::unique_ptr<v8::ConvertableToTraceFormat>* arg_convertables,
     unsigned int flags, int64_t timestamp) {
   auto trace_writer = producer_->GetTLSTraceWriter();
-  if (!trace_writer) {
+  if (trace_writer.expired()) {
     return kNoHandle;
   }
   static uint64_t handle = kNoHandle + 1;
   static std::hash<std::thread::id> hasher;
   {
-    auto trace_packet = trace_writer->NewTracePacket();
+    auto trace_packet = trace_writer.lock()->NewTracePacket();
     auto trace_event_bundle = trace_packet->set_chrome_events();
     auto trace_event = trace_event_bundle->add_trace_events();
     trace_event->set_process_id(uv_os_getpid());
     // Imperfect way to get a thread ID in lieu of V8's built-in mechanism.
     trace_event->set_thread_id(hasher(std::this_thread::get_id()) % 65536);
     trace_event->set_phase(phase);
+    trace_event->set_category_group_name(category_manager_.GetCategoryGroupName(category_enabled_flag));
     trace_event->set_name(name);
     if (scope != nullptr) {
       trace_event->set_scope(scope);
@@ -38,8 +39,16 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     trace_event->set_bind_id(bind_id);
     trace_event->set_timestamp(timestamp);
     trace_event->set_thread_timestamp(timestamp);
+    trace_event->set_duration(0);
+    trace_event->set_thread_duration(0);
   }
-  trace_writer->Flush();
+  // if (!producer_->GetTaskRunner().expired()) {
+  //   producer_->GetTaskRunner().lock()->PostTask([=]() {
+  //     if (!trace_writer.expired()) {
+  //       trace_writer.lock()->Flush();
+  //     }
+  //   });
+  // }
   return handle++;
 }
 

@@ -22,7 +22,9 @@ class NodeTaskRunner : public perfetto::base::TaskRunner {
   void AddFileDescriptorWatch(int fd, std::function<void()>) override {}
   void RemoveFileDescriptorWatch(int fd) override {}
   bool RunsTasksOnCurrentThread() const override { return true; }
-  virtual void Start() = 0;
+  virtual void Start();
+ private:
+  v8::Isolate* isolate_;
 };
 
 class DelayedNodeTaskRunner : public NodeTaskRunner {
