@@ -24,8 +24,9 @@ class TracingTask : public v8::Task {
     f_();
   }
 
- private:
   std::function<void()> f_;
+
+ private:
   uint32_t task_id_;
 };
 
@@ -59,15 +60,45 @@ void DelayedNodeTaskRunner::PostTask(std::function<void()> task) {
   if (!started_) {
     delayed_args_.push_back(std::pair<std::function<void()>, uint32_t>(std::move(task), 0));
   } else {
-    NodeTaskRunner::PostTask(task);
+    // auto task_m = new TracingTask(std::move(task));
+    auto wrapped_task = [=]() {
+      {
+        std::lock_guard<std::mutex> lock(ref_lock_);
+        ref_count_--;
+      }
+      task();
+      // task_m->f_();
+      // delete task_m;
+    };
+    {
+      std::lock_guard<std::mutex> lock(ref_lock_);
+      ref_count_++;
+    }
+    NodeTaskRunner::PostTask(wrapped_task);
   }
 }
 
 void DelayedNodeTaskRunner::PostDelayedTask(std::function<void()> task, uint32_t delay_ms) {
   if (!started_) {
     delayed_args_.push_back(std::pair<std::function<void()>, uint32_t>(std::move(task), delay_ms));
+  } else if (!use_refs_ || ref_count_ > 0) {
+    // auto task_m = new TracingTask(std::move(task));
+    auto wrapped_task = [=]() {
+      {
+        std::lock_guard<std::mutex> lock(ref_lock_);
+        ref_count_--;
+      }
+      task();
+      // task_m->f_();
+      // delete task_m;
+    };
+    {
+      std::lock_guard<std::mutex> lock(ref_lock_);
+      ref_count_++;
+    }
+    NodeTaskRunner::PostDelayedTask(wrapped_task, delay_ms);
   } else {
-    NodeTaskRunner::PostDelayedTask(task, delay_ms);
+    printf("ref_count_ = 0\n");
   }
 }
 
@@ -81,6 +112,7 @@ void DelayedNodeTaskRunner::Start() {
       PostDelayedTask(itr->first, itr->second);
     }
   }
+  use_refs_ = true;
   delayed_args_.clear();
 }
 

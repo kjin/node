@@ -7,6 +7,7 @@
 #include "v8.h"
 
 #include <list>
+#include <mutex>
 
 namespace node {
 namespace tracing {
@@ -27,6 +28,11 @@ class NodeTaskRunner : public perfetto::base::TaskRunner {
   v8::Isolate* isolate_;
 };
 
+/**
+ * This class is a super-hack to circumvent two things:
+ * - Can't start the task runner immediately because isolate isn't set up
+ * - Don't want to keep the process alive with period write requests
+ */
 class DelayedNodeTaskRunner : public NodeTaskRunner {
  public:
   void PostTask(std::function<void()> task) override;
@@ -35,6 +41,9 @@ class DelayedNodeTaskRunner : public NodeTaskRunner {
  private:
   std::list<std::pair<std::function<void()>, uint32_t>> delayed_args_;
   bool started_ = false;
+  bool use_refs_ = false;
+  uint32_t ref_count_ = 0;
+  std::mutex ref_lock_;
 };
 
 }
