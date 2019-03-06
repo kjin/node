@@ -115,22 +115,7 @@ class TracingControllerProducer : public NodeProducer {
   std::shared_ptr<NodeTracingController> GetTracingController() {
     return trace_controller_;
   }
-  std::weak_ptr<perfetto::TraceWriter> GetTLSTraceWriter() {
-    static std::mutex writer_lock_;
-    std::lock_guard<std::mutex> scoped_lock(writer_lock_);
-    if (!svc_endpoint_ || target_buffer_ == 0) {
-      return std::weak_ptr<perfetto::TraceWriter>();
-    } else {
-      static uint8_t thread_id_ctr = 0;
-      thread_local uint8_t thread_id = thread_id_ctr++;
-      std::weak_ptr<perfetto::TraceWriter> result(writers_[thread_id]);
-      if (result.expired()) {
-        printf("Creating new trace writer %d\n", thread_id);
-        result = std::weak_ptr<perfetto::TraceWriter>(writers_[thread_id] = svc_endpoint_->CreateTraceWriter(target_buffer_));
-      }
-      return result;
-    }
-  }
+  std::weak_ptr<perfetto::TraceWriter> GetTLSTraceWriter();
   std::weak_ptr<perfetto::base::TaskRunner> GetTaskRunner() {
     return task_runner_;
   }

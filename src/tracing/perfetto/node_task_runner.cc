@@ -10,13 +10,17 @@ class TracingTask : public v8::Task {
  public:
   explicit TracingTask(std::function<void()> f) : f_(std::move(f)) {
     // TODO(kjin): For debugging purposes only, remove later.
-    static uint32_t next_task_id_ = 0;
-    task_id_ = next_task_id_++;
-    // printf("Initialized task %d\n", task_id_);
+    // static uint32_t next_task_id_ = 0;
+    // task_id_ = next_task_id_++;
+    // if (task_id_ % 100 == 0) {
+    //   printf("Initialized task %d\n", task_id_);
+    // }
   }
 
   void Run() override {
-    // printf("Running task %d\n", task_id_);
+    // if (task_id_ % 100 == 0) {
+    //   printf("Running task %d\n", task_id_);
+    // }
     f_();
   }
 

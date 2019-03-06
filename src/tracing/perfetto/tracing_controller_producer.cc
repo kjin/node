@@ -16,12 +16,20 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     const uint64_t* arg_values,
     std::unique_ptr<v8::ConvertableToTraceFormat>* arg_convertables,
     unsigned int flags, int64_t timestamp) {
+  // Hack to prevent flushes from happen at every trace event.
+  // Every flush posts a new task to the task runner, so this might be needed
+  // to prevent infinite loops.
+  if (std::strcmp(name, "CheckImmediate") == 0) {
+    return kNoHandle;
+  }
   auto trace_writer = producer_->GetTLSTraceWriter();
   if (trace_writer.expired()) {
     return kNoHandle;
   }
   static uint64_t handle = kNoHandle + 1;
   static std::hash<std::thread::id> hasher;
+  static std::mutex writer_lock_;
+  std::lock_guard<std::mutex> scoped_lock(writer_lock_);
   {
     auto trace_packet = trace_writer.lock()->NewTracePacket();
     auto trace_event_bundle = trace_packet->set_chrome_events();
@@ -42,6 +50,7 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     trace_event->set_duration(0);
     trace_event->set_thread_duration(0);
   }
+  trace_writer.lock()->Flush();
   // if (!producer_->GetTaskRunner().expired()) {
   //   producer_->GetTaskRunner().lock()->PostTask([=]() {
   //     if (!trace_writer.expired()) {
@@ -106,6 +115,23 @@ void TracingControllerProducer::StopDataSource(perfetto::DataSourceInstanceID id
   }
   Cleanup();
 }
+
+std::weak_ptr<perfetto::TraceWriter> TracingControllerProducer::GetTLSTraceWriter() {
+    static std::mutex writer_lock_;
+    std::lock_guard<std::mutex> scoped_lock(writer_lock_);
+    if (!svc_endpoint_ || target_buffer_ == 0) {
+      return std::weak_ptr<perfetto::TraceWriter>();
+    } else {
+      static uint8_t thread_id_ctr = 0;
+      thread_local uint8_t thread_id = thread_id_ctr++;
+      std::weak_ptr<perfetto::TraceWriter> result(writers_[thread_id]);
+      if (result.expired()) {
+        printf("Creating new trace writer %d\n", thread_id);
+        result = std::weak_ptr<perfetto::TraceWriter>(writers_[thread_id] = svc_endpoint_->CreateTraceWriter(target_buffer_));
+      }
+      return result;
+    }
+  }
 
 void TracingControllerProducer::Cleanup() {
   trace_controller_->enabled_ = false;
