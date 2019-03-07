@@ -49,6 +49,7 @@ uint64_t PerfettoTracingController::AddTraceEventWithTimestamp(
     trace_event->set_thread_timestamp(timestamp);
     trace_event->set_duration(0);
     trace_event->set_thread_duration(0);
+    trace_event->AppendString(17, "A custom field.\n");
   }
   trace_writer.lock()->Flush();
   // if (!producer_->GetTaskRunner().expired()) {
