@@ -13,12 +13,12 @@
 
 #define NODE_USE_PERFETTO 1
 
-#if NODE_USE_PERFETTO
+// #if NODE_USE_PERFETTO
 #include "tracing/perfetto_agent.h"
 #include "tracing/perfetto/file_writer_consumer.h"
-#else
+// #else
 #include "tracing/legacy_agent.h"
-#endif
+// #endif
 
 namespace node {
 
@@ -138,8 +138,8 @@ struct V8Platform {
         tracing_agent_.get());
       tracing::FileWriterConsumerOptions options;
       options.log_file_pattern = per_process::cli_options->trace_event_file_pattern.c_str();
-      options.buffer_size_kb = 4096;
-      options.file_size_kb = 1048576;
+      options.buffer_size_kb = 256;
+      options.file_size_kb = 256;
       options.file_write_period_ms = 2000; // Every 2s
       tracing_file_writer_ = agent->AddClient(
         std::unique_ptr<tracing::TracingAgentClientConsumer>(

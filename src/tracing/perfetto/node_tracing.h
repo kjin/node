@@ -5,6 +5,7 @@
 #include "perfetto/tracing/core/consumer.h"
 #include "perfetto/tracing/core/producer.h"
 #include "tracing/perfetto/node_task_runner.h"
+#include "tracing/node_producer_endpoint.h"
 
 #include <list>
 
@@ -80,12 +81,7 @@ class NodeConsumerHandle {
 
 class NodeProducer : public perfetto::Producer {
  protected:
-  std::unique_ptr<perfetto::TracingService::ProducerEndpoint> svc_endpoint_;
-  std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
-  std::string name_ = "";
-  virtual void BeforeConnect() {}
-  virtual void BeforeDisconnect() {}
-  //
+  inline perfetto::TracingService::ProducerEndpoint* GetServiceEndpoint() { return svc_endpoint_.get(); }
   void OnConnect() override {}
   void OnDisconnect() override {}
   void OnTracingSetup() override {}
@@ -94,55 +90,41 @@ class NodeProducer : public perfetto::Producer {
   void StartDataSource(perfetto::DataSourceInstanceID,
                        const perfetto::DataSourceConfig& cfg) override {}
   void StopDataSource(perfetto::DataSourceInstanceID) override {}
-  void Flush(::perfetto::FlushRequestID,
+  void Flush(perfetto::FlushRequestID,
              const perfetto::DataSourceInstanceID*, size_t) override {}
  private:
-  // Private members for use by friends only.
-  void Connect(perfetto::TracingService* service) {
-    BeforeConnect();
-    svc_endpoint_ = service->ConnectProducer(this, 0, name_);
-  }
-  void Disconnect() {
-    BeforeDisconnect();
-    svc_endpoint_.reset(nullptr);
-  }
-  void SetTaskRunner(std::weak_ptr<perfetto::base::TaskRunner> task_runner) {
-    task_runner_ = task_runner;
-  }
-  bool IsConnected() {
-    return !!svc_endpoint_;
-  }
+  std::unique_ptr<base::NodeProducerEndpoint> svc_endpoint_;
   friend class NodeTracing;
-  friend class NodeProducerHandle;
+  // friend class NodeProducerHandle;
 };
 
-class NodeProducerHandle {
- public:
-  ~NodeProducerHandle() {
-    if (producer_->IsConnected()) {
-      producer_->Disconnect();
-      // The task runner is owned by the NodeTracing instance that created this
-      // handle, and will be destroyed with it. Because the NodeTracing instance
-      // will also disconnect any remaining Consumer and Producer instances in
-      // its destructor, then it's impossible for this reference to be expired.
-      if (task_runner_.expired()) {
-        UNREACHABLE();
-      }
-      // Don't destroy the Producer right away.
-      std::shared_ptr<NodeProducer> producer = producer_;
-      std::shared_ptr<perfetto::base::TaskRunner>(task_runner_)->PostTask([producer]() {});
-    }
-  }
- private:
-  NodeProducerHandle(
-    std::unique_ptr<NodeProducer> producer,
-    std::shared_ptr<perfetto::base::TaskRunner> task_runner): task_runner_(task_runner), producer_(producer.release()) {
-      producer_->SetTaskRunner(task_runner_);
-    }
-  std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
-  std::shared_ptr<NodeProducer> producer_;
-  friend class NodeTracing;
-};
+// class NodeProducerHandle {
+//  public:
+//   ~NodeProducerHandle() {
+//     if (producer_->IsConnected()) {
+//       producer_->Disconnect();
+//       // The task runner is owned by the NodeTracing instance that created this
+//       // handle, and will be destroyed with it. Because the NodeTracing instance
+//       // will also disconnect any remaining Consumer and Producer instances in
+//       // its destructor, then it's impossible for this reference to be expired.
+//       if (task_runner_.expired()) {
+//         UNREACHABLE();
+//       }
+//       // Don't destroy the Producer right away.
+//       std::shared_ptr<NodeProducer> producer = producer_;
+//       std::shared_ptr<perfetto::base::TaskRunner>(task_runner_)->PostTask([producer]() {});
+//     }
+//   }
+//  private:
+//   NodeProducerHandle(
+//     std::unique_ptr<NodeProducer> producer,
+//     std::shared_ptr<perfetto::base::TaskRunner> task_runner): task_runner_(task_runner), producer_(producer.release()) {
+//       producer_->SetTaskRunner(task_runner_);
+//     }
+//   std::weak_ptr<perfetto::base::TaskRunner> task_runner_;
+//   std::shared_ptr<NodeProducer> producer_;
+//   friend class NodeTracing;
+// };
 
 /**
  * A wrapper around Perfetto's TracingService implementation.
@@ -153,7 +135,7 @@ class NodeTracing {
   ~NodeTracing();
   void Initialize();
   std::unique_ptr<NodeConsumerHandle> ConnectConsumer(std::unique_ptr<NodeConsumer> consumer);
-  std::unique_ptr<NodeProducerHandle> ConnectProducer(std::unique_ptr<NodeProducer> producer);
+  void ConnectProducer(std::shared_ptr<NodeProducer> producer, std::string name);
  private:
   std::list<std::weak_ptr<NodeProducer>> producers_;
   std::list<std::weak_ptr<NodeConsumer>> consumers_;

@@ -77,9 +77,10 @@ class TracingAgentClientConsumerHandle : public AgentWriterHandle {
 
 PerfettoAgent::PerfettoAgent()
   : node_tracing_(new NodeTracing()) {
-  TracingControllerProducer* producer = new TracingControllerProducer();
+  auto producer = new TracingControllerProducer();
+  producer_.reset(producer);
   tracing_controller_ = producer->GetTracingController();
-  producer_handle_ = node_tracing_->ConnectProducer(std::unique_ptr<NodeProducer>(producer));
+  node_tracing_->ConnectProducer(producer_, "tracing-controller-producer");
 }
 
 void PerfettoAgent::Initialize() {

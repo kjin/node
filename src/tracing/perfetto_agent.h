@@ -58,7 +58,7 @@ class PerfettoAgent : public Agent {
  private:
   std::unique_ptr<NodeTracing> node_tracing_;
   std::shared_ptr<TracingController> tracing_controller_;
-  std::unique_ptr<NodeProducerHandle> producer_handle_;
+  std::shared_ptr<NodeProducer> producer_;
 };
 
 }

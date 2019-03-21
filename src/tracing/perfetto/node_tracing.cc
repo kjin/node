@@ -15,8 +15,7 @@ NodeTracing::NodeTracing()
 NodeTracing::~NodeTracing() {
   for (auto itr = producers_.begin(); itr != producers_.end(); itr++) {
     if (!itr->expired()) {
-      std::shared_ptr<NodeProducer> producer(*itr);
-      producer->Disconnect();
+      itr->lock()->svc_endpoint_.reset();
     }
   }
   for (auto itr = consumers_.begin(); itr != consumers_.end(); itr++) {
@@ -40,12 +39,10 @@ std::unique_ptr<NodeConsumerHandle> NodeTracing::ConnectConsumer(std::unique_ptr
   return handle;
 }
 
-std::unique_ptr<NodeProducerHandle> NodeTracing::ConnectProducer(std::unique_ptr<NodeProducer> producer) {
-  producer->Connect(tracing_service_.get());
-  std::unique_ptr<NodeProducerHandle> handle = std::unique_ptr<NodeProducerHandle>(
-    new NodeProducerHandle(std::move(producer), task_runner_));
-  producers_.push_back(std::weak_ptr<NodeProducer>(handle->producer_));
-  return handle;
+void NodeTracing::ConnectProducer(std::shared_ptr<NodeProducer> producer, std::string name) {
+  auto endpoint = tracing_service_->ConnectProducer(producer.get(), 0, name);
+  producer->svc_endpoint_.reset(new base::NodeProducerEndpoint(std::move(endpoint), task_runner_));
+  producers_.push_back(producer); // could be a set
 }
 
 }

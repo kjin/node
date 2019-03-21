@@ -115,14 +115,8 @@ class TracingControllerProducer : public NodeProducer {
   std::shared_ptr<NodeTracingController> GetTracingController() {
     return trace_controller_;
   }
-  std::weak_ptr<perfetto::TraceWriter> GetTLSTraceWriter();
-  std::weak_ptr<perfetto::base::TaskRunner> GetTaskRunner() {
-    return task_runner_;
-  }
+  perfetto::TraceWriter* GetTLSTraceWriter();
  private:
-  void BeforeDisconnect() override {
-    Cleanup();
-  }
   void OnConnect() override;
   void SetupDataSource(perfetto::DataSourceInstanceID id,
                        const perfetto::DataSourceConfig& cfg) override;
@@ -134,7 +128,8 @@ class TracingControllerProducer : public NodeProducer {
   void Cleanup();
 
   uint32_t target_buffer_ = 0;
-  std::unordered_map<uint8_t, std::shared_ptr<perfetto::TraceWriter>> writers_;
+  std::unique_ptr<perfetto::TraceWriter> trace_writer_;
+  // std::unordered_map<uint8_t, std::shared_ptr<perfetto::TraceWriter>> writers_;
   std::shared_ptr<PerfettoTracingController> trace_controller_;
   perfetto::DataSourceInstanceID data_source_id_;
 };
