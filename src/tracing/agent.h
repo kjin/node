@@ -28,24 +28,6 @@ class AsyncTraceWriter {
   virtual void InitializeOnThread(uv_loop_t* loop) {}
 };
 
-class TracingController : public v8::platform::tracing::TracingController {
- public:
-  TracingController() : v8::platform::tracing::TracingController() {}
-
-  int64_t CurrentTimestampMicroseconds() override {
-    return uv_hrtime() / 1000;
-  }
-  void AddMetadataEvent(
-      const unsigned char* category_group_enabled,
-      const char* name,
-      int num_args,
-      const char** arg_names,
-      const unsigned char* arg_types,
-      const uint64_t* arg_values,
-      std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
-      unsigned int flags);
-};
-
 class AgentWriterHandle {
  public:
   inline AgentWriterHandle() {}
@@ -82,7 +64,7 @@ class Agent {
   Agent();
   ~Agent();
 
-  TracingController* GetTracingController() {
+  v8::TracingController* GetTracingController() {
     TracingController* controller = tracing_controller_.get();
     CHECK_NOT_NULL(controller);
     return controller;
@@ -108,13 +90,43 @@ class Agent {
   // Writes to all writers registered through AddClient().
   void AppendTraceEvent(TraceObject* trace_event);
 
-  void AddMetadataEvent(std::unique_ptr<TraceObject> event);
+  void AddMetadataEvent(
+      const unsigned char* category_group_enabled,
+      const char* name,
+      int num_args,
+      const char** arg_names,
+      const unsigned char* arg_types,
+      const uint64_t* arg_values,
+      std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
+      unsigned int flags);
   // Flushes all writers registered through AddClient().
   void Flush(bool blocking);
 
   TraceConfig* CreateTraceConfig() const;
 
  private:
+  class TracingController : public v8::platform::tracing::TracingController {
+   public:
+    TracingController() : v8::platform::tracing::TracingController() {}
+
+    int64_t CurrentTimestampMicroseconds() override {
+      return uv_hrtime() / 1000;
+    }
+   private:
+    void AddMetadataEvent(
+        const unsigned char* category_group_enabled,
+        const char* name,
+        int num_args,
+        const char** arg_names,
+        const unsigned char* arg_types,
+        const uint64_t* arg_values,
+        std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
+        unsigned int flags);
+    Mutex metadata_events_mutex_;
+    std::list<std::unique_ptr<TraceObject>> metadata_events_;
+    friend class Agent;
+  };
+
   friend class AgentWriterHandle;
 
   void InitializeWritersOnThread();
@@ -146,9 +158,6 @@ class Agent {
   ConditionVariable initialize_writer_condvar_;
   uv_async_t initialize_writer_async_;
   std::set<AsyncTraceWriter*> to_be_initialized_;
-
-  Mutex metadata_events_mutex_;
-  std::list<std::unique_ptr<TraceObject>> metadata_events_;
 };
 
 void AgentWriterHandle::reset() {

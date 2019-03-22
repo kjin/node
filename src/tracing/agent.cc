@@ -207,23 +207,32 @@ void Agent::AppendTraceEvent(TraceObject* trace_event) {
     id_writer.second->AppendTraceEvent(trace_event);
 }
 
-void Agent::AddMetadataEvent(std::unique_ptr<TraceObject> event) {
-  Mutex::ScopedLock lock(metadata_events_mutex_);
-  metadata_events_.push_back(std::move(event));
+void Agent::AddMetadataEvent(
+    const unsigned char* category_group_enabled,
+    const char* name,
+    int num_args,
+    const char** arg_names,
+    const unsigned char* arg_types,
+    const uint64_t* arg_values,
+    std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
+    unsigned int flags) {
+  tracing_controller_->AddMetadataEvent(category_group_enabled, name, num_args,
+      arg_names, arg_types, arg_values, convertable_values, flags);
 }
 
 void Agent::Flush(bool blocking) {
   {
-    Mutex::ScopedLock lock(metadata_events_mutex_);
-    for (const auto& event : metadata_events_)
+    Mutex::ScopedLock lock(tracing_controller_->metadata_events_mutex_);
+    for (const auto& event : tracing_controller_->metadata_events_)
       AppendTraceEvent(event.get());
+    tracing_controller_->metadata_events_.clear();
   }
 
   for (const auto& id_writer : writers_)
     id_writer.second->Flush(blocking);
 }
 
-void TracingController::AddMetadataEvent(
+void Agent::TracingController::AddMetadataEvent(
     const unsigned char* category_group_enabled,
     const char* name,
     int num_args,
@@ -242,8 +251,8 @@ void TracingController::AddMetadataEvent(
       TRACE_EVENT_FLAG_NONE,
       CurrentTimestampMicroseconds(),
       CurrentCpuTimestampMicroseconds());
-  node::tracing::TraceEventHelper::GetAgent()->AddMetadataEvent(
-      std::move(trace_event));
+  Mutex::ScopedLock lock(metadata_events_mutex_);
+  metadata_events_.push_back(std::move(trace_event));
 }
 
 }  // namespace tracing
