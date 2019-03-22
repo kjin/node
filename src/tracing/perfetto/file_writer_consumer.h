@@ -24,14 +24,8 @@ class FileWriterConsumer : public TracingAgentClientConsumer {
   void Enable(const std::set<std::string>& categories) override;
   void Disable(const std::set<std::string>& categories) override;
  private:
-  void OnConnect() override {
-    connected_ = true;
-  }
-  void OnDisconnect() override {
-    connected_ = false;
-  }
   void OnTracingDisabled() override {
-    svc_endpoint_->FreeBuffers();
+    GetServiceEndpoint()->FreeBuffers();
     RotateFilenameAndEnable();
   }
 
@@ -39,7 +33,6 @@ class FileWriterConsumer : public TracingAgentClientConsumer {
   
   const FileWriterConsumerOptions options_;
   uint32_t file_num_ = 0;
-  bool connected_ = false;
 };
 
 }

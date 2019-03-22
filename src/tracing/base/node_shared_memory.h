@@ -5,6 +5,7 @@
 
 namespace node {
 namespace tracing {
+namespace base {
 
 class NodeShmem : public perfetto::SharedMemory {
  public:
@@ -33,6 +34,7 @@ class NodeShmemFactory : public perfetto::SharedMemory::Factory {
   }
 };
 
+}
 }
 }
 

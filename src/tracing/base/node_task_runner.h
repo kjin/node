@@ -11,6 +11,7 @@
 
 namespace node {
 namespace tracing {
+namespace base {
 
 class NodeTaskRunner : public perfetto::base::TaskRunner {
  public:
@@ -46,6 +47,7 @@ class DelayedNodeTaskRunner : public NodeTaskRunner {
   std::mutex ref_lock_;
 };
 
+}
 }
 }
 

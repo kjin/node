@@ -1,8 +1,9 @@
-#include "tracing/perfetto/node_tracing.h"
-#include "tracing/perfetto/node_shared_memory.h"
+#include "tracing/base/node_tracing.h"
+#include "tracing/base/node_shared_memory.h"
 
 namespace node {
 namespace tracing {
+namespace base {
 
 NodeTracing::NodeTracing()
   : task_runner_(new DelayedNodeTaskRunner()) {
@@ -20,8 +21,7 @@ NodeTracing::~NodeTracing() {
   }
   for (auto itr = consumers_.begin(); itr != consumers_.end(); itr++) {
     if (!itr->expired()) {
-      std::shared_ptr<NodeConsumer> consumer(*itr);
-      consumer->Disconnect();
+      itr->lock()->svc_endpoint_.reset();
     }
   }
   tracing_service_.reset(nullptr);
@@ -31,19 +31,18 @@ void NodeTracing::Initialize() {
   task_runner_->Start();
 }
 
-std::unique_ptr<NodeConsumerHandle> NodeTracing::ConnectConsumer(std::unique_ptr<NodeConsumer> consumer) {
-  consumer->Connect(tracing_service_.get());
-  std::unique_ptr<NodeConsumerHandle> handle = std::unique_ptr<NodeConsumerHandle>(
-    new NodeConsumerHandle(std::move(consumer), task_runner_));
-  consumers_.push_back(std::weak_ptr<NodeConsumer>(handle->consumer_));
-  return handle;
+void NodeTracing::ConnectConsumer(std::shared_ptr<NodeConsumer> consumer) {
+  auto endpoint = tracing_service_->ConnectConsumer(consumer.get(), 0);
+  consumer->svc_endpoint_.reset(new NodeConsumerEndpoint(std::move(endpoint), task_runner_));
+  consumers_.push_back(consumer); // could be a set
 }
 
 void NodeTracing::ConnectProducer(std::shared_ptr<NodeProducer> producer, std::string name) {
   auto endpoint = tracing_service_->ConnectProducer(producer.get(), 0, name);
-  producer->svc_endpoint_.reset(new base::NodeProducerEndpoint(std::move(endpoint), task_runner_));
+  producer->svc_endpoint_.reset(new NodeProducerEndpoint(std::move(endpoint), task_runner_));
   producers_.push_back(producer); // could be a set
 }
 
+}
 }
 }

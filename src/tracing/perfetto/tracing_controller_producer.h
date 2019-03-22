@@ -2,7 +2,7 @@
 #define SRC_TRACING_PERFETTO_NODE_TRACING_CONTROLLER_PRODUCER_H_
 
 #include "libplatform/v8-tracing.h"
-#include "tracing/perfetto/node_tracing.h"
+#include "tracing/base/node_tracing.h"
 #include "tracing/agent.h"
 #include "uv.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"

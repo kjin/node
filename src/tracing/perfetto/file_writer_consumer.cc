@@ -10,15 +10,7 @@ void FileWriterConsumer::Enable(const std::set<std::string>& categories) {
 }
 
 void FileWriterConsumer::Disable(const std::set<std::string>& categories) {
-  if (task_runner_.expired()) {
-    // Not connected yet, no point in disabling.
-    UNREACHABLE();
-  }
-  task_runner_.lock()->PostTask([=]() {
-    if (connected_) {
-      svc_endpoint_->DisableTracing();
-    }
-  });
+  GetServiceEndpoint()->DisableTracing();
 }
 
 // From NodeTraceWriter
@@ -33,41 +25,32 @@ void ReplaceSubstring(std::string* target,
 }
 
 void FileWriterConsumer::RotateFilenameAndEnable() {
-  if (task_runner_.expired()) {
-    // Not connected yet, so can't enable.
-    UNREACHABLE();
+  // Rotate the name.
+  std::string log_file_pattern(options_.log_file_pattern);
+  ReplaceSubstring(&log_file_pattern,
+      "${pid}", std::to_string(uv_os_getpid()));
+  ReplaceSubstring(&log_file_pattern,
+      "${rotation}", std::to_string(++file_num_));
+  // For clarity:
+  // - "options" was used to set up this _consumer_
+  // - "config" will be sent to enable the _producer_
+  perfetto::TraceConfig config;
+  config.add_buffers()->set_size_kb(options_.buffer_size_kb);
+  {
+    auto c = config.add_data_sources();
+    auto c2 = c->mutable_config();
+    c2->set_name("trace_events");
   }
-  task_runner_.lock()->PostTask([=]() {
-    if (!connected_) {
-      return;
-    }
-    // Rotate the name.
-    std::string log_file_pattern(options_.log_file_pattern);
-    ReplaceSubstring(&log_file_pattern,
-        "${pid}", std::to_string(uv_os_getpid()));
-    ReplaceSubstring(&log_file_pattern,
-        "${rotation}", std::to_string(++file_num_));
-    // For clarity:
-    // - "options" was used to set up this _consumer_
-    // - "config" will be sent to enable the _producer_
-    perfetto::TraceConfig config;
-    config.add_buffers()->set_size_kb(options_.buffer_size_kb);
-    {
-      auto c = config.add_data_sources();
-      auto c2 = c->mutable_config();
-      c2->set_name("trace_events");
-    }
-    config.set_write_into_file(true);
-    uint64_t file_size_bytes = options_.file_size_kb;
-    file_size_bytes <<= 10;
-    config.set_max_file_size_bytes(file_size_bytes);
-    config.set_disable_clock_snapshotting(true);
-    config.set_file_write_period_ms(options_.file_write_period_ms);
-    
-    perfetto::base::ScopedFile fd(
-        open(log_file_pattern.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644));
-    svc_endpoint_->EnableTracing(config, std::move(fd));
-  });
+  config.set_write_into_file(true);
+  uint64_t file_size_bytes = options_.file_size_kb;
+  file_size_bytes <<= 10;
+  config.set_max_file_size_bytes(file_size_bytes);
+  config.set_disable_clock_snapshotting(true);
+  config.set_file_write_period_ms(options_.file_write_period_ms);
+  
+  perfetto::base::ScopedFile fd(
+      open(log_file_pattern.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644));
+  GetServiceEndpoint()->EnableTracing(config, std::move(fd));
 }
 
 }

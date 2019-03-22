@@ -1,4 +1,4 @@
-#include "tracing/node_producer_endpoint.h"
+#include "tracing/base/node_producer_endpoint.h"
 
 namespace node {
 namespace tracing {

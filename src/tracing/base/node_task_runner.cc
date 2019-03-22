@@ -1,10 +1,11 @@
-#include "tracing/perfetto/node_task_runner.h"
+#include "tracing/base/node_task_runner.h"
 #include "node_v8_platform-inl.h"
 #include "debug_utils.h"
 #include <stdio.h>
 
 namespace node {
 namespace tracing {
+namespace base {
 
 class TracingTask : public v8::Task {
  public:
@@ -86,5 +87,6 @@ void DelayedNodeTaskRunner::Start() {
   delayed_args_.clear();
 }
 
+}
 }
 }
