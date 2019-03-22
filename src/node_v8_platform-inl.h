@@ -10,6 +10,7 @@
 #include "tracing/node_trace_writer.h"
 #include "tracing/trace_event.h"
 #include "tracing/traced_value.h"
+#include "tracing/agent.h"
 
 namespace node {
 
@@ -81,8 +82,7 @@ struct V8Platform {
   inline void Initialize(int thread_pool_size) {
     tracing_agent_.reset(new tracing::Agent());
     node::tracing::TraceEventHelper::SetAgent(tracing_agent_.get());
-    node::tracing::TracingController* controller =
-        tracing_agent_->GetTracingController();
+    v8::TracingController* controller = tracing_agent_->GetTracingController();
     trace_state_observer_.reset(new NodeTraceStateObserver(controller));
     controller->AddTraceStateObserver(trace_state_observer_.get());
     tracing_file_writer_ = tracing_agent_->DefaultHandle();

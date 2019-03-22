@@ -8,6 +8,7 @@
 #include "node_platform.h"
 #include "v8-platform.h"
 #include "trace_event_common.h"
+#include "tracing/agent.h"
 #include <atomic>
 
 // This header file defines implementation details of how the trace macros in
@@ -312,7 +313,7 @@ const uint64_t kNoId = 0;
 
 class TraceEventHelper {
  public:
-  static TracingController* GetTracingController();
+  static v8::TracingController* GetTracingController();
   static Agent* GetAgent();
   static void SetAgent(Agent* agent);
 };
@@ -503,9 +504,8 @@ static V8_INLINE void AddMetadataEventImpl(
     arg_convertibles[1].reset(reinterpret_cast<v8::ConvertableToTraceFormat*>(
         static_cast<intptr_t>(arg_values[1])));
   }
-  node::tracing::TracingController* controller =
-      node::tracing::TraceEventHelper::GetTracingController();
-  return controller->AddMetadataEvent(
+  node::tracing::Agent* agent = node::tracing::TraceEventHelper::GetAgent();
+  return agent->AddMetadataEvent(
       category_group_enabled, name, num_args, arg_names, arg_types, arg_values,
       arg_convertibles, flags);
 }
