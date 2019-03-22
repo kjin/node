@@ -1,5 +1,5 @@
-#ifndef SRC_TRACING_PERFETTO_NODE_TRACING_H_
-#define SRC_TRACING_PERFETTO_NODE_TRACING_H_
+#ifndef SRC_TRACING_BASE_NODE_TRACING_H_
+#define SRC_TRACING_BASE_NODE_TRACING_H_
 
 #include "perfetto/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/consumer.h"

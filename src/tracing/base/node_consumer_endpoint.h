@@ -1,9 +1,11 @@
-#ifndef SRC_TRACING_NODE_PRODUCER_ENDPOINT_H_
-#define SRC_TRACING_NODE_PRODUCER_ENDPOINT_H_
+#ifndef SRC_TRACING_BASE_NODE_CONSUMER_ENDPOINT_H_
+#define SRC_TRACING_BASE_NODE_CONSUMER_ENDPOINT_H_
 
 #include "node_mutex.h"
 #include "perfetto/tracing/core/tracing_service.h"
+#include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/scoped_file.h"
 
 namespace node {
 namespace tracing {

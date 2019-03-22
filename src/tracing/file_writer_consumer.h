@@ -1,7 +1,8 @@
-#ifndef SRC_TRACING_PERFETTO_FILE_WRITER_CONSUMER_H_
-#define SRC_TRACING_PERFETTO_FILE_WRITER_CONSUMER_H_
+#ifndef SRC_TRACING_FILE_WRITER_CONSUMER_H_
+#define SRC_TRACING_FILE_WRITER_CONSUMER_H_
 
-#include "tracing/perfetto_agent.h"
+#include "tracing/base/node_tracing.h"
+#include <set>
 
 namespace node {
 namespace tracing {
@@ -18,11 +19,11 @@ struct FileWriterConsumerOptions {
  * A Perfetto Consumer that doesn't consume traces directly, instead directing
  * producers to write to a file.
  */
-class FileWriterConsumer : public TracingAgentClientConsumer {
+class FileWriterConsumer : public base::NodeConsumer {
  public:
   FileWriterConsumer(FileWriterConsumerOptions& options): options_(options) {}
-  void Enable(const std::set<std::string>& categories) override;
-  void Disable(const std::set<std::string>& categories) override;
+  void Enable(const std::set<std::string>& categories);
+  void Disable(const std::set<std::string>& categories);
  private:
   void OnTracingDisabled() override {
     GetServiceEndpoint()->FreeBuffers();

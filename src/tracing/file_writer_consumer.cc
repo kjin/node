@@ -1,4 +1,4 @@
-#include "tracing/perfetto/file_writer_consumer.h"
+#include "tracing/file_writer_consumer.h"
 #include "perfetto/base/scoped_file.h"
 #include "perfetto/tracing/core/trace_config.h"
 

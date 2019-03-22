@@ -1,5 +1,5 @@
-#ifndef SRC_TRACING_NODE_PRODUCER_ENDPOINT_H_
-#define SRC_TRACING_NODE_PRODUCER_ENDPOINT_H_
+#ifndef SRC_TRACING_BASE_NODE_PRODUCER_ENDPOINT_H_
+#define SRC_TRACING_BASE_NODE_PRODUCER_ENDPOINT_H_
 
 #include "node_mutex.h"
 #include "perfetto/tracing/core/tracing_service.h"

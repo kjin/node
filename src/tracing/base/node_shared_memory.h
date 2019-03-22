@@ -1,5 +1,5 @@
-#ifndef SRC_TRACING_PERFETTO_NODE_SHMEM_H_
-#define SRC_TRACING_PERFETTO_NODE_SHMEM_H_
+#ifndef SRC_TRACING_BASE_NODE_SHMEM_H_
+#define SRC_TRACING_BASE_NODE_SHMEM_H_
 
 #include "perfetto/tracing/core/shared_memory.h"
 

@@ -1,4 +1,4 @@
-#include "tracing/base/tracing_controller_producer.h"
+#include "tracing/tracing_controller_producer.h"
 #include "perfetto/trace/clock_snapshot.pbzero.h"
 #include "uv.h"
 #include <algorithm>

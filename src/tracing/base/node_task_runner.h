@@ -1,5 +1,5 @@
-#ifndef SRC_TRACING_PERFETTO_NODE_TASK_RUNNER_H_
-#define SRC_TRACING_PERFETTO_NODE_TASK_RUNNER_H_
+#ifndef SRC_TRACING_BASE_NODE_TASK_RUNNER_H_
+#define SRC_TRACING_BASE_NODE_TASK_RUNNER_H_
 
 #include "perfetto/base/task_runner.h"
 #include "debug_utils.h"

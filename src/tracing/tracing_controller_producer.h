@@ -1,9 +1,9 @@
-#ifndef SRC_TRACING_PERFETTO_NODE_TRACING_CONTROLLER_PRODUCER_H_
-#define SRC_TRACING_PERFETTO_NODE_TRACING_CONTROLLER_PRODUCER_H_
+#ifndef SRC_TRACING_NODE_TRACING_CONTROLLER_PRODUCER_H_
+#define SRC_TRACING_NODE_TRACING_CONTROLLER_PRODUCER_H_
 
 #include "libplatform/v8-tracing.h"
+#include "v8-platform.h"
 #include "tracing/base/node_tracing.h"
-#include "tracing/agent.h"
 #include "uv.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -16,34 +16,13 @@
 #include <set>
 #include <mutex>
 
-using V8TracingController = v8::platform::tracing::TracingController;
-using NodeTracingController = node::tracing::TracingController;
-
 namespace node {
 namespace tracing {
 
 class TracingControllerProducer;
 
-class PerfettoTracingController : public NodeTracingController {
+class PerfettoTracingController : public v8::TracingController {
  public:
-  // node::tracing::TracingController -- should all be no-ops except metadata
-  void Initialize(TraceBuffer* trace_buffer) override {
-    // Do nothing
-  }
-  void AddMetadataEvent(
-      const unsigned char* category_group_enabled,
-      const char* name,
-      int num_args,
-      const char** arg_names,
-      const unsigned char* arg_types,
-      const uint64_t* arg_values,
-      std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
-      unsigned int flags) override {
-        // Do nothing
-      }
-  void StartTracing(TraceConfig* trace_config) override {}
-  void StopTracing() override {}
-
   // v8::TracingController
   const uint8_t* GetCategoryGroupEnabled(const char* name) override {
     return category_manager_.GetCategoryGroupEnabled(name);
@@ -100,7 +79,7 @@ class PerfettoTracingController : public NodeTracingController {
       controller_.StartTracing(config);
     }
    private:
-    V8TracingController controller_;
+    v8::platform::tracing::TracingController controller_;
   } category_manager_;
 
   TracingControllerProducer* producer_;
@@ -109,10 +88,10 @@ class PerfettoTracingController : public NodeTracingController {
   friend class TracingControllerProducer;
 };
 
-class TracingControllerProducer : public NodeProducer {
+class TracingControllerProducer : public base::NodeProducer {
  public:
   TracingControllerProducer();
-  std::shared_ptr<NodeTracingController> GetTracingController() {
+  std::shared_ptr<v8::TracingController> GetTracingController() {
     return trace_controller_;
   }
   perfetto::TraceWriter* GetTLSTraceWriter();
