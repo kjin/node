@@ -787,7 +787,6 @@ inline int Start(Isolate* isolate, IsolateData* isolate_data,
   // - the option parser should not allow that.
   CHECK(!env.options()->debug_options().inspector_enabled);
 #endif  // HAVE_INSPECTOR && NODE_USE_V8_PLATFORM
-  per_process::v8_platform.tracing_agent_->Initialize();
 
   {
     Environment::AsyncCallbackScope callback_scope(&env);

@@ -1,7 +1,7 @@
 #ifndef SRC_TRACING_NODE_TRACE_BUFFER_H_
 #define SRC_TRACING_NODE_TRACE_BUFFER_H_
 
-#include "tracing/legacy_agent.h"
+#include "tracing/agent.h"
 #include "node_mutex.h"
 #include "libplatform/v8-tracing.h"
 
@@ -19,7 +19,7 @@ class NodeTraceBuffer;
 
 class InternalTraceBuffer {
  public:
-  InternalTraceBuffer(size_t max_chunks, uint32_t id, LegacyAgent* agent);
+  InternalTraceBuffer(size_t max_chunks, uint32_t id, Agent* agent);
 
   TraceObject* AddTraceEvent(uint64_t* handle);
   TraceObject* GetEventByHandle(uint64_t handle);
@@ -41,7 +41,7 @@ class InternalTraceBuffer {
   Mutex mutex_;
   bool flushing_;
   size_t max_chunks_;
-  LegacyAgent* agent_;
+  Agent* agent_;
   std::vector<std::unique_ptr<TraceBufferChunk>> chunks_;
   size_t total_chunks_ = 0;
   uint32_t current_chunk_seq_ = 1;
@@ -50,7 +50,7 @@ class InternalTraceBuffer {
 
 class NodeTraceBuffer : public TraceBuffer {
  public:
-  NodeTraceBuffer(size_t max_chunks, LegacyAgent* agent, uv_loop_t* tracing_loop);
+  NodeTraceBuffer(size_t max_chunks, Agent* agent, uv_loop_t* tracing_loop);
   ~NodeTraceBuffer() override;
 
   TraceObject* AddTraceEvent(uint64_t* handle) override;

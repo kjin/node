@@ -5,7 +5,6 @@
 #include "debug_utils.h"
 #include "util.h"
 #include <algorithm>
-#include "tracing/legacy_agent.h"
 
 namespace node {
 
@@ -290,7 +289,7 @@ NodePlatform::NodePlatform(int thread_pool_size,
   if (tracing_controller) {
     tracing_controller_ = tracing_controller;
   } else {
-    tracing_controller_ = new tracing::LegacyTracingController();
+    tracing_controller_ = new TracingController();
   }
   worker_thread_task_runner_ =
       std::make_shared<WorkerThreadsTaskRunner>(thread_pool_size);

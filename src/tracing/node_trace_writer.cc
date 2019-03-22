@@ -27,7 +27,6 @@ void NodeTraceWriter::InitializeOnThread(uv_loop_t* loop) {
   exit_signal_.data = this;
   err = uv_async_init(tracing_loop_, &exit_signal_, ExitSignalCb);
   CHECK_EQ(err, 0);
-  initialized_ = true;
 }
 
 void NodeTraceWriter::WriteSuffix() {
@@ -54,14 +53,10 @@ NodeTraceWriter::~NodeTraceWriter() {
     CHECK_EQ(0, uv_fs_close(nullptr, &req, fd_, nullptr));
     uv_fs_req_cleanup(&req);
   }
-  // TODO(kjin): PerfettoAgent currently doesn't initialize the trace writer.
-  // This block is just here to prevent a segfault.
-  if (initialized_) {
-    uv_async_send(&exit_signal_);
-    Mutex::ScopedLock scoped_lock(request_mutex_);
-    while (!exited_) {
-      exit_cond_.Wait(scoped_lock);
-    }
+  uv_async_send(&exit_signal_);
+  Mutex::ScopedLock scoped_lock(request_mutex_);
+  while (!exited_) {
+    exit_cond_.Wait(scoped_lock);
   }
 }
 
