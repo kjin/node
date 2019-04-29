@@ -584,6 +584,7 @@
         'src/node_api_types.h',
         'src/node_binding.h',
         'src/node_buffer.h',
+        'src/node_cgroups.h',
         'src/node_constants.h',
         'src/node_context_data.h',
         'src/node_contextify.h',

@@ -25,6 +25,7 @@
 
 #include "debug_utils.h"
 #include "node_binding.h"
+#include "node_cgroups.h"
 #include "node_internals.h"
 #include "node_main_instance.h"
 #include "node_metadata.h"
@@ -92,6 +93,8 @@
 #include <sys/resource.h>  // getrlimit, setrlimit
 #include <unistd.h>        // STDIN_FILENO, STDERR_FILENO
 #endif
+
+#define CGROUPS_ROOT_PATH "/sys/fs"
 
 // ========== global C++ headers ==========
 
@@ -898,6 +901,11 @@ int Start(int argc, char** argv) {
       params.external_references = external_references.data();
       params.snapshot_blob = blob;
     }
+
+    per_process::cgroups.Initialize(CGROUPS_ROOT_PATH);
+    auto memory_limit_in_bytes = per_process::cgroups.GetMemoryLimitInBytes(1 << 22);
+    printf("Setting memory limit to %llu\n", memory_limit_in_bytes);
+    params.constraints.set_max_old_space_size(memory_limit_in_bytes >> 10);
 
     NodeMainInstance main_instance(&params,
                                    uv_default_loop(),
